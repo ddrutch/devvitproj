@@ -1,5 +1,6 @@
-import { Game } from './Game';
+import React from 'react';
+import { DebateDueler } from './components/DebateDueler';
 
 export const App = () => {
-  return <Game />;
+  return <DebateDueler />;
 };

@@ -1,158 +1,367 @@
 import express from 'express';
 import { createServer, getContext, getServerPort } from '@devvit/server';
-import { CheckResponse, InitResponse, LetterState } from '../shared/types/game';
-import { postConfigGet, postConfigNew, postConfigMaybeGet } from './core/post';
-import { allWords } from './core/words';
 import { getRedis } from '@devvit/redis';
+import {
+  InitGameResponse,
+  SubmitAnswerResponse,
+  LeaderboardResponse,
+  CreateQuestionResponse,
+  CreateDeckResponse,
+  ScoringMode,
+  PlayerAnswer,
+  Question,
+  Deck,
+} from '../shared/types/game';
+import {
+  initPlayerSession,
+  getPlayerSession,
+  updatePlayerSession,
+  recordAnswer,
+  getQuestionStats,
+  calculateScore,
+  updateLeaderboard,
+  getLeaderboard,
+  getPlayerRank,
+  saveDeck,
+  getDeck,
+} from './core/game';
+import { getDefaultDeck, validateDeck } from './core/decks';
 
 const app = express();
 
-// Middleware for JSON body parsing
 app.use(express.json());
-// Middleware for URL-encoded body parsing
 app.use(express.urlencoded({ extended: true }));
-// Middleware for plain text body parsing
 app.use(express.text());
 
 const router = express.Router();
 
-router.get<{ postId: string }, InitResponse | { status: string; message: string }>(
-  '/api/init',
-  async (_req, res): Promise<void> => {
-    const { postId } = getContext();
-    const redis = getRedis();
+// Initialize game - get deck and player session
+router.get('/api/init', async (_req, res): Promise<void> => {
+  const { postId, userId } = getContext();
+  const redis = getRedis();
 
-    if (!postId) {
-      console.error('API Init Error: postId not found in devvit context');
+  if (!postId) {
+    res.status(400).json({ status: 'error', message: 'Post ID is required' });
+    return;
+  }
+
+  try {
+    // Get or create deck for this post
+    let deck = await getDeck({ redis, postId });
+    if (!deck) {
+      deck = getDefaultDeck();
+      await saveDeck({ redis, postId, deck });
+    }
+
+    // Get existing player session if user is logged in
+    let playerSession = null;
+    if (userId) {
+      playerSession = await getPlayerSession({ redis, postId, userId });
+    }
+
+    res.json({
+      status: 'success',
+      deck,
+      playerSession,
+    } as InitGameResponse);
+  } catch (error) {
+    console.error('Init game error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to initialize game',
+    });
+  }
+});
+
+// Start new game session
+router.post<{}, InitGameResponse, { scoringMode: ScoringMode }>('/api/start', async (req, res): Promise<void> => {
+  const { scoringMode } = req.body;
+  const { postId, userId, username } = getContext();
+  const redis = getRedis();
+
+  if (!postId || !userId || !username) {
+    res.status(400).json({
+      status: 'error',
+      message: 'Must be logged in to play',
+    });
+    return;
+  }
+
+  if (!scoringMode || !['contrarian', 'conformist', 'trivia'].includes(scoringMode)) {
+    res.status(400).json({
+      status: 'error',
+      message: 'Valid scoring mode is required',
+    });
+    return;
+  }
+
+  try {
+    const deck = await getDeck({ redis, postId });
+    if (!deck) {
+      res.status(404).json({
+        status: 'error',
+        message: 'Game deck not found',
+      });
+      return;
+    }
+
+    const playerSession = await initPlayerSession({
+      redis,
+      postId,
+      userId,
+      username,
+      scoringMode,
+      deck,
+    });
+
+    res.json({
+      status: 'success',
+      deck,
+      playerSession,
+    });
+  } catch (error) {
+    console.error('Start game error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to start game',
+    });
+  }
+});
+
+// Submit answer for current question
+router.post<{}, SubmitAnswerResponse, { cardId: string; timeRemaining: number }>('/api/answer', async (req, res): Promise<void> => {
+  const { cardId, timeRemaining } = req.body;
+  const { postId, userId } = getContext();
+  const redis = getRedis();
+
+  if (!postId || !userId) {
+    res.status(400).json({
+      status: 'error',
+      message: 'Must be logged in to submit answers',
+    });
+    return;
+  }
+
+  if (!cardId || timeRemaining < 0) {
+    res.status(400).json({
+      status: 'error',
+      message: 'Valid card ID and time remaining are required',
+    });
+    return;
+  }
+
+  try {
+    const session = await getPlayerSession({ redis, postId, userId });
+    if (!session || session.gameState !== 'playing') {
       res.status(400).json({
         status: 'error',
-        message: 'postId is required but missing from context',
+        message: 'No active game session found',
       });
       return;
     }
 
-    try {
-      let config = await postConfigMaybeGet({ redis, postId });
-      if (!config || !config.wordOfTheDay) {
-        console.log(`No valid config found for post ${postId}, creating new one.`);
-        await postConfigNew({ redis: getRedis(), postId });
-        config = await postConfigGet({ redis, postId });
-      }
-
-      if (!config.wordOfTheDay) {
-        console.error(
-          `API Init Error: wordOfTheDay still not found for post ${postId} after attempting creation.`
-        );
-        throw new Error('Failed to initialize game configuration.');
-      }
-
-      res.json({
-        status: 'success',
-        postId: postId,
+    const deck = await getDeck({ redis, postId });
+    if (!deck) {
+      res.status(404).json({
+        status: 'error',
+        message: 'Game deck not found',
       });
-    } catch (error) {
-      console.error(`API Init Error for post ${postId}:`, error);
-      const message =
-        error instanceof Error ? error.message : 'Unknown error during initialization';
-      res.status(500).json({ status: 'error', message });
+      return;
     }
+
+    const currentQuestion = deck.questions[session.currentQuestionIndex];
+    if (!currentQuestion) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Invalid question index',
+      });
+      return;
+    }
+
+    // Validate card ID
+    const selectedCard = currentQuestion.cards.find(card => card.id === cardId);
+    if (!selectedCard) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Invalid card selection',
+      });
+      return;
+    }
+
+    // Record the answer
+    const answer: PlayerAnswer = {
+      questionId: currentQuestion.id,
+      cardId,
+      timeRemaining,
+      timestamp: Date.now(),
+    };
+
+    session.answers.push(answer);
+
+    // Record answer in stats
+    await recordAnswer({ redis, postId, questionId: currentQuestion.id, cardId });
+
+    // Get updated stats for scoring
+    const questionStats = await getQuestionStats({
+      redis,
+      postId,
+      questionId: currentQuestion.id,
+      cardIds: currentQuestion.cards.map(card => card.id),
+    });
+
+    // Calculate score for this answer
+    const answerScore = calculateScore({
+      scoringMode: session.scoringMode,
+      cardId,
+      questionStats,
+      timeRemaining,
+      isCorrect: selectedCard.isCorrect,
+    });
+
+    session.totalScore += answerScore;
+
+    // Check if game is complete
+    const isGameComplete = session.currentQuestionIndex >= deck.questions.length - 1;
+    
+    if (isGameComplete) {
+      session.gameState = 'finished';
+      session.finishedAt = Date.now();
+      
+      // Update leaderboard
+      await updateLeaderboard({
+        redis,
+        postId,
+        entry: {
+          userId: session.userId,
+          username: session.username,
+          score: session.totalScore,
+          scoringMode: session.scoringMode,
+          completedAt: session.finishedAt,
+        },
+      });
+    } else {
+      session.currentQuestionIndex++;
+    }
+
+    await updatePlayerSession({ redis, postId, session });
+
+    res.json({
+      status: 'success',
+      score: answerScore,
+      questionStats,
+      isGameComplete,
+      nextQuestionIndex: isGameComplete ? undefined : session.currentQuestionIndex,
+    });
+  } catch (error) {
+    console.error('Submit answer error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to submit answer',
+    });
   }
-);
+});
 
-router.post<{ postId: string }, CheckResponse, { guess: string }>(
-  '/api/check',
-  async (req, res): Promise<void> => {
-    const { guess } = req.body;
-    const { postId, userId } = getContext();
-    const redis = getRedis();
+// Get leaderboard
+router.get('/api/leaderboard', async (_req, res): Promise<void> => {
+  const { postId, userId } = getContext();
+  const redis = getRedis();
 
-    if (!postId) {
-      res.status(400).json({ status: 'error', message: 'postId is required' });
-      return;
-    }
-    if (!userId) {
-      res.status(400).json({ status: 'error', message: 'Must be logged in' });
-      return;
-    }
-    if (!guess) {
-      res.status(400).json({ status: 'error', message: 'Guess is required' });
-      return;
-    }
+  if (!postId) {
+    res.status(400).json({
+      status: 'error',
+      message: 'Post ID is required',
+    });
+    return;
+  }
 
-    const config = await postConfigGet({ redis, postId });
-    const { wordOfTheDay } = config;
-
-    const normalizedGuess = guess.toLowerCase();
-
-    if (normalizedGuess.length !== 5) {
-      res.status(400).json({ status: 'error', message: 'Guess must be 5 letters long' });
-      return;
-    }
-
-    const wordExists = allWords.includes(normalizedGuess);
-
-    if (!wordExists) {
-      res.json({
-        status: 'success',
-        exists: false,
-        solved: false,
-        correct: Array(5).fill('initial') as [
-          LetterState,
-          LetterState,
-          LetterState,
-          LetterState,
-          LetterState,
-        ],
-      });
-      return;
-    }
-
-    const answerLetters = wordOfTheDay.split('');
-    const resultCorrect: LetterState[] = Array(5).fill('initial');
-    let solved = true;
-    const guessLetters = normalizedGuess.split('');
-
-    for (let i = 0; i < 5; i++) {
-      if (guessLetters[i] === answerLetters[i]) {
-        resultCorrect[i] = 'correct';
-        answerLetters[i] = '';
-      } else {
-        solved = false;
-      }
-    }
-
-    for (let i = 0; i < 5; i++) {
-      if (resultCorrect[i] === 'initial') {
-        const guessedLetter = guessLetters[i]!;
-        const presentIndex = answerLetters.indexOf(guessedLetter);
-        if (presentIndex !== -1) {
-          resultCorrect[i] = 'present';
-          answerLetters[presentIndex] = '';
-        }
-      }
-    }
-
-    for (let i = 0; i < 5; i++) {
-      if (resultCorrect[i] === 'initial') {
-        resultCorrect[i] = 'absent';
+  try {
+    const leaderboard = await getLeaderboard({ redis, postId, limit: 10 });
+    
+    let playerRank = null;
+    let playerScore = null;
+    
+    if (userId) {
+      playerRank = await getPlayerRank({ redis, postId, userId });
+      const session = await getPlayerSession({ redis, postId, userId });
+      if (session) {
+        playerScore = session.totalScore;
       }
     }
 
     res.json({
       status: 'success',
-      exists: true,
-      solved,
-      correct: resultCorrect as [LetterState, LetterState, LetterState, LetterState, LetterState],
+      leaderboard,
+      playerRank,
+      playerScore,
+    } as LeaderboardResponse);
+  } catch (error) {
+    console.error('Leaderboard error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get leaderboard',
     });
   }
-);
+});
 
-// Use router middleware
+// Add question to existing deck
+router.post<{}, CreateQuestionResponse, { question: Question }>('/api/add-question', async (req, res): Promise<void> => {
+  const { question } = req.body;
+  const { postId, userId, username } = getContext();
+  const redis = getRedis();
+
+  if (!postId || !userId || !username) {
+    res.status(400).json({
+      status: 'error',
+      message: 'Must be logged in to add questions',
+    });
+    return;
+  }
+
+  if (!question || !question.prompt || !question.cards || question.cards.length < 2) {
+    res.status(400).json({
+      status: 'error',
+      message: 'Valid question with at least 2 cards is required',
+    });
+    return;
+  }
+
+  try {
+    const deck = await getDeck({ redis, postId });
+    if (!deck) {
+      res.status(404).json({
+        status: 'error',
+        message: 'Game deck not found',
+      });
+      return;
+    }
+
+    // Add author attribution and generate ID
+    const newQuestion: Question = {
+      ...question,
+      id: `user_${Date.now()}_${userId}`,
+      authorUsername: username,
+      timeLimit: question.timeLimit || 20,
+    };
+
+    deck.questions.push(newQuestion);
+    await saveDeck({ redis, postId, deck });
+
+    res.json({
+      status: 'success',
+      questionId: newQuestion.id,
+    });
+  } catch (error) {
+    console.error('Add question error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to add question',
+    });
+  }
+});
+
 app.use(router);
 
-// Get port from environment variable with fallback
 const port = getServerPort();
-
 const server = createServer(app);
-server.on('error', (err) => console.error(`server error; ${err.stack}`));
-server.listen(port, () => console.log(`http://localhost:${port}`));
+server.on('error', (err) => console.error(`Server error: ${err.stack}`));
+server.listen(port, () => console.log(`Debate Dueler server running on http://localhost:${port}`));

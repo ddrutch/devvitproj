@@ -1,35 +1,29 @@
-import { Devvit, Post , useWebView } from '@devvit/public-api';
+import { Devvit, Post, useWebView } from '@devvit/public-api';
 
 // Side effect import to bundle the server. The /index is required for server splitting.
 import '../server/index';
 import { defineConfig } from '@devvit/server';
-import { postConfigNew } from '../server/core/post';
+import { saveDeck, getDeck } from '../server/core/game';
+import { getDefaultDeck } from '../server/core/decks';
+import { getRedis } from '@devvit/redis';
 
 defineConfig({
-  name: '[Bolt] Word Guesser',
+  name: '[Bolt] Debate Dueler',
   entry: 'index.html',
   height: 'tall',
   menu: { enable: false },
-  // TODO: Cannot use without ability to pass in more metadata
-  // menu: {
-  //   enable: true,
-  //   label: 'New Word Guesser Post',
-  //   postTitle: 'Word Guesser',
-  //   preview: <Preview />,
-  // },
 });
 
 Devvit.addCustomPostType({
-  name: 'Word Guesser',       // this is your in-Reddit post name
-  height: 'tall',             // auto-sizes to fill the post
+  name: 'Debate Dueler',
+  height: 'tall',
   render: (context) => {
-    const { mount } = useWebView();  // gives you the “open webview” fn
+    const { mount } = useWebView();
 
     return (
       <vstack alignment="center middle" gap="large" grow padding="large">
-        <text size="xxlarge" weight="bold">Word Guesser</text>
+        <text size="xxlarge" weight="bold">🥊 Debate Dueler</text>
         
-        {/* Your loading / branding images: */}
         <image
           url="loading.gif"
           description="Loading animation"
@@ -38,24 +32,22 @@ Devvit.addCustomPostType({
           resizeMode="fit"
         />
 
-        {/* Your custom “Launch Game” button: */}
+        <vstack alignment="center" gap="medium">
+          <text size="large" weight="bold" color="orange">Choose Your Strategy:</text>
+          <text size="medium">🎭 Contrarian • 👥 Conformist • 🧠 Trivia</text>
+        </vstack>
+
         <button
           size="large"
           appearance="primary"
           onPress={() => mount()}
         >
-          Launch Game
+          🚀 Start Dueling!
         </button>
       </vstack>
     );
   },
 });
-
-
-
-
-
-
 
 export const Preview: Devvit.BlockComponent<{ text?: string }> = ({ text = 'Loading...' }) => {
   return (
@@ -78,10 +70,9 @@ export const Preview: Devvit.BlockComponent<{ text?: string }> = ({ text = 'Load
   );
 };
 
-// TODO: Remove this when defineConfig allows webhooks before post creation
+// Menu item for creating new posts
 Devvit.addMenuItem({
-  // Please update as you work on your idea!
-  label: '[Bolt Word Guesser]: New Post',
+  label: '[Bolt Debate Dueler]: New Post',
   location: 'subreddit',
   forUserType: 'moderator',
   onPress: async (_event, context) => {
@@ -91,17 +82,17 @@ Devvit.addMenuItem({
     try {
       const subreddit = await reddit.getCurrentSubreddit();
       post = await reddit.submitPost({
-        // Title of the post. You'll want to update!
-        title: 'Word Guesser',
+        title: 'Debate Dueler - Epic Battles',
         subredditName: subreddit.name,
-           
         preview: <Preview />,
       });
-      await postConfigNew({
-        redis: context.redis,
-        postId: post.id,
-      });
-      ui.showToast({ text: 'Created post!' });
+
+      // Initialize the game with default deck
+      const redis = getRedis();
+      const defaultDeck = getDefaultDeck();
+      await saveDeck({ redis, postId: post.id, deck: defaultDeck });
+
+      ui.showToast({ text: 'Debate Dueler post created!' });
       ui.navigateTo(post.url);
     } catch (error) {
       if (post) {
