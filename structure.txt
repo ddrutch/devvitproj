@@ -1,0 +1,85 @@
+**Project Name:** Reddit Debate Dueler
+
+**Summary:**
+A Reddit-integrated game where users face off against an AI "Redditor" NPC in a timed series of debate rounds. Each round involves choosing from themed card options (e.g. strongest animal, ethical questions, trivia, next-step decisions), reacting under time pressure, and earning a score. At the end, users are ranked on a leaderboard and encouraged to remix the game with their own card sets.
+
+---
+
+**Goals:**
+
+* Create a lightweight, humorous, and interactive card-based game on Reddit using Devvit and Bolt.
+* Encourage community interaction through remixable game posts.
+* Track scores and provide competitive/replayable value.
+
+---
+
+**Core Features:**
+
+1. **AI Debate Opponent**: A simulated Redditor gives opinions and reacts to your card choices.
+2. **Themed Debate Rounds**: Timed questions with card-based answers (e.g. Bear vs. Tiger vs. Elephant).
+3. **Mini-Challenges**: Bonus rounds with Yes/No ethics, math, or logic questions.
+4. **Next-Step Progression Rounds**: Choose what to do next in a fictional scenario.
+5. **Timers**: 30-second countdown on each interaction.
+6. **Scoring System**: Points awarded for choices and correctness.
+7. **Leaderboard**: Shows top 5 players + user's score at the end.
+8. **Remix Feature**: Players can fork the challenge and create their own versions.
+
+---
+
+**Game Flow:**
+
+1. User opens a game post.
+2. A prompt is displayed (e.g. "Who wins: Bear, Tiger, Elephant, Rhino?").
+3. Four card buttons appear with answers.
+4. Timer starts.
+5. User selects a card.
+6. AI Redditor reacts with their own answer.
+7. Community vote percentages are displayed.
+8. Points awarded.
+9. Mini-Challenge/Next Step Round (optional/alternating).
+10. Repeat for 5-7 rounds.
+11. Final leaderboard and user score displayed.
+12. Remix prompt displayed.
+
+---
+
+**Design Requirements:**
+
+* UI: Button grid for cards, countdown timer, leaderboard section.
+* API: Store and retrieve scores, user picks, deck data.
+* AI/NPC Logic: Predefined personality-based responses.
+* Timer: Auto-progress with timeout penalties.
+* Deck System: Decks per theme with card metadata.
+* Customization: Slash commands or UI to create/remix decks.
+
+---
+
+**Dev Steps:**
+
+1. Set up Devvit/Bolt base template.
+2. Design card rendering system (text/buttons).
+3. Implement NPC AI logic and card reaction generator.
+4. Build timer system per round.
+5. Create scoring logic and result screen.
+6. Build leaderboard backend and display logic.
+7. Add slash-commands for remixing and deck creation.
+8. Test round transitions and score flow.
+9. Add theme backgrounds that progress as you play.
+10. Launch test game post.
+
+---
+
+**Optional Additions:**
+
+* User profile flair for top scores.
+* Animated transitions between rounds.
+* Easter egg or secret trump cards.
+* Shareable deck links.
+
+---
+
+**Post Launch:**
+
+* Weekly featured themes (e.g. "Superhero Battles Week").
+* Hall of Fame post with top user-created debates.
+* Collect user feedback to improve NPC and challenge design.

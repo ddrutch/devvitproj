@@ -1,4 +1,4 @@
-import { Devvit, Post } from '@devvit/public-api';
+import { Devvit, Post , useWebView } from '@devvit/public-api';
 
 // Side effect import to bundle the server. The /index is required for server splitting.
 import '../server/index';
@@ -18,6 +18,44 @@ defineConfig({
   //   preview: <Preview />,
   // },
 });
+
+Devvit.addCustomPostType({
+  name: 'Word Guesser',       // this is your in-Reddit post name
+  height: 'tall',             // auto-sizes to fill the post
+  render: (context) => {
+    const { mount } = useWebView();  // gives you the “open webview” fn
+
+    return (
+      <vstack alignment="center middle" gap="large" grow padding="large">
+        <text size="xxlarge" weight="bold">Word Guesser</text>
+        
+        {/* Your loading / branding images: */}
+        <image
+          url="loading.gif"
+          description="Loading animation"
+          imageWidth={200}
+          imageHeight={200}
+          resizeMode="fit"
+        />
+
+        {/* Your custom “Launch Game” button: */}
+        <button
+          size="large"
+          appearance="primary"
+          onPress={() => mount()}
+        >
+          Launch Game
+        </button>
+      </vstack>
+    );
+  },
+});
+
+
+
+
+
+
 
 export const Preview: Devvit.BlockComponent<{ text?: string }> = ({ text = 'Loading...' }) => {
   return (
@@ -56,6 +94,7 @@ Devvit.addMenuItem({
         // Title of the post. You'll want to update!
         title: 'Word Guesser',
         subredditName: subreddit.name,
+           
         preview: <Preview />,
       });
       await postConfigNew({
