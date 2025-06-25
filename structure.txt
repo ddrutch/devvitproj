@@ -1,7 +1,7 @@
 **Project Name:** Reddit Debate Dueler
 
 **Summary:**
-A Reddit-integrated game where users face off against an AI "Redditor" NPC in a timed series of debate rounds. Each round involves choosing from themed card options (e.g. strongest animal, ethical questions, trivia, next-step decisions), reacting under time pressure, and earning a score. At the end, users are ranked on a leaderboard and encouraged to remix the game with their own card sets.
+A Reddit-integrated game where users respond to timed questions using card-based answers. Players choose a scoring mode—either "Contrarian" (least popular answer), "Conformist" (most popular answer), or "Trivia" (correct answer)—and are scored based on how well their picks align with their chosen style. At the end, users are ranked on a leaderboard and encouraged to remix the game with their own card sets or add a question to the exisitng topic.
 
 ---
 
@@ -9,48 +9,55 @@ A Reddit-integrated game where users face off against an AI "Redditor" NPC in a 
 
 * Create a lightweight, humorous, and interactive card-based game on Reddit using Devvit and Bolt.
 * Encourage community interaction through remixable game posts.
-* Track scores and provide competitive/replayable value.
+* Offer three distinct play styles: Contrarian, Conformist, and Trivia.
+* Prioritise a mobile-first UI and UX experience for small screens.for ranges of (218px to 718px width).
 
 ---
 
 **Core Features:**
 
-1. **AI Debate Opponent**: A simulated Redditor gives opinions and reacts to your card choices.
-2. **Themed Debate Rounds**: Timed questions with card-based answers (e.g. Bear vs. Tiger vs. Elephant).
-3. **Mini-Challenges**: Bonus rounds with Yes/No ethics, math, or logic questions.
-4. **Next-Step Progression Rounds**: Choose what to do next in a fictional scenario.
-5. **Timers**: 30-second countdown on each interaction.
-6. **Scoring System**: Points awarded for choices and correctness.
-7. **Leaderboard**: Shows top 5 players + user's score at the end.
-8. **Remix Feature**: Players can fork the challenge and create their own versions.
+1. **Scoring Modes:**
+
+   * **Contrarian:** Score higher for picking the least popular choice.
+   * **Conformist:** Score higher for picking the most popular choice.
+   * **Trivia:** Score based on correct answers set by the post creator.
+2. **Themed Question Rounds:** Timed multiple-choice questions with 3–5 options.
+3. **Community Voting Visibility:** Displays percentage of picks from other users for each possible .
+4. **Timers:** 20-second countdown per question.
+5. **Scoring System:** Points based on chosen scoring mode and response accuracy and time.
+6. **Leaderboard:** Shows top 5–10 players with compact design optimized  User’s score is shown directly below the list.
+7. **Remix Feature:** Players can fork the challenge and create their own versions mainly with a new theme.
+8. **Postgame Authoring:** At the end of the game, players are prompted to:
+
+   * Create a **new full post** with their own custom topic and questions.
+   * Or **add a single new question** to the existing chain. , Their username is credited (e.g., “by u/feet-futus”) alongside the question they contributed.
 
 ---
 
 **Game Flow:**
 
 1. User opens a game post.
-2. A prompt is displayed (e.g. "Who wins: Bear, Tiger, Elephant, Rhino?").
-3. Four card buttons appear with answers.
-4. Timer starts.
-5. User selects a card.
-6. AI Redditor reacts with their own answer.
+2. Selects scoring mode (Contrarian / Conformist / Trivia).
+3. A prompt is displayed (e.g. "Who wins: Bear, Tiger, Elephant, Rhino?").
+4. 3–5 option cards appear.
+5. Timer starts.
+6. User selects a card.
 7. Community vote percentages are displayed.
-8. Points awarded.
-9. Mini-Challenge/Next Step Round (optional/alternating).
-10. Repeat for 5-7 rounds.
-11. Final leaderboard and user score displayed.
-12. Remix prompt displayed.
+8. Points awarded based on scoring mode.
+9. Repeat for 5–7 rounds.
+10. Final leaderboard and user score displayed.
+11. Remix prompt and postgame authoring options displayed.
 
 ---
 
 **Design Requirements:**
 
-* UI: Button grid for cards, countdown timer, leaderboard section.
-* API: Store and retrieve scores, user picks, deck data.
-* AI/NPC Logic: Predefined personality-based responses.
+* UI: Button grid for cards, countdown timer, leaderboard section, scoring mode selector.
+* Mobile-first design: Prioritize layout and interactivity for devices with screen widths between 218px and 718px.
+* API: Store and retrieve scores, user picks, deck data, creator-assigned correct answers.
 * Timer: Auto-progress with timeout penalties.
-* Deck System: Decks per theme with card metadata.
-* Customization: Slash commands or UI to create/remix decks.
+* Deck System: Decks per theme with card metadata and optionally correct answers.
+* Postgame Submission: Modal or button flow for new post creation or question addition with author attribution.
 
 ---
 
@@ -58,11 +65,11 @@ A Reddit-integrated game where users face off against an AI "Redditor" NPC in a 
 
 1. Set up Devvit/Bolt base template.
 2. Design card rendering system (text/buttons).
-3. Implement NPC AI logic and card reaction generator.
+3. Implement scoring mode selection interface.
 4. Build timer system per round.
-5. Create scoring logic and result screen.
+5. Create scoring logic based on selected mode.
 6. Build leaderboard backend and display logic.
-7. Add slash-commands for remixing and deck creation.
+7. Implement postgame authoring tools (full post or add question).
 8. Test round transitions and score flow.
 9. Add theme backgrounds that progress as you play.
 10. Launch test game post.
@@ -73,7 +80,7 @@ A Reddit-integrated game where users face off against an AI "Redditor" NPC in a 
 
 * User profile flair for top scores.
 * Animated transitions between rounds.
-* Easter egg or secret trump cards.
+* Community stats dashboard (popular decks, win rates by mode).
 * Shareable deck links.
 
 ---
@@ -82,4 +89,4 @@ A Reddit-integrated game where users face off against an AI "Redditor" NPC in a 
 
 * Weekly featured themes (e.g. "Superhero Battles Week").
 * Hall of Fame post with top user-created debates.
-* Collect user feedback to improve NPC and challenge design.
+* Collect user feedback to refine scoring balance and UX.
