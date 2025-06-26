@@ -130,22 +130,21 @@ router.post<{}, InitGameResponse, { scoringMode: ScoringMode }>('/api/start', as
   }
 });
 
-// Submit answer for current question
-// Update answer route
-router.post<{}, SubmitAnswerResponse, { cardId?: string; sequence?: string[]; timeRemaining: number }>(
-  '/api/answer', 
+// NEW: Complete game endpoint - processes all answers at once
+router.post<{}, any, { answers: PlayerAnswer[]; totalScore: number }>(
+  '/api/complete-game', 
   async (req, res): Promise<void> => {
-    const { cardId, sequence, timeRemaining } = req.body;
+    const { answers, totalScore } = req.body;
     const { postId, userId } = getContext();
     const redis = getRedis();
 
     if (!postId || !userId) {
-      res.status(400).json({ status: 'error', message: 'Must be logged in to submit answers' });
+      res.status(400).json({ status: 'error', message: 'Must be logged in to complete game' });
       return;
     }
 
-    if (timeRemaining < 0) {
-      res.status(400).json({ status: 'error', message: 'Valid time remaining is required' });
+    if (!answers || !Array.isArray(answers) || answers.length === 0) {
+      res.status(400).json({ status: 'error', message: 'Valid answers required' });
       return;
     }
 
@@ -162,124 +161,80 @@ router.post<{}, SubmitAnswerResponse, { cardId?: string; sequence?: string[]; ti
         return;
       }
 
-      const currentQuestion = deck.questions[session.currentQuestionIndex];
-      if (!currentQuestion) {
-        res.status(400).json({ status: 'error', message: 'Invalid question index' });
-        return;
-      }
-
-      let answer: string | string[];
+      // Process all answers and calculate accurate scores
+      let finalScore = 0;
       
-      // Determine answer type based on question type
-      if (currentQuestion.questionType === 'sequence') {
-        if (!sequence || !Array.isArray(sequence) || sequence.length < 2) {
-          res.status(400).json({ status: 'error', message: 'Valid sequence required' });
-          return;
-        }
-        answer = sequence;
-      } else {
-        if (!cardId) {
-          res.status(400).json({ status: 'error', message: 'Card ID required' });
-          return;
-        }
-        
-        // Validate card ID
-        const selectedCard = currentQuestion.cards.find(card => card.id === cardId);
-        if (!selectedCard) {
-          res.status(400).json({ status: 'error', message: 'Invalid card selection' });
-          return;
-        }
-        
-        answer = cardId;
-      }
+      for (const answer of answers) {
+        const question = deck.questions.find(q => q.id === answer.questionId);
+        if (!question) continue;
 
-      // Record the answer
-      const answerRecord: PlayerAnswer = {
-        questionId: currentQuestion.id,
-        answer,
-        timeRemaining,
-        timestamp: Date.now(),
-      };
+        // Record answer in stats for community voting
+        await recordAnswer({ 
+          redis, 
+          postId, 
+          questionId: question.id, 
+          answer: answer.answer 
+        });
 
-      session.answers.push(answerRecord);
-
-      // Record answer in stats
-      await recordAnswer({ 
-        redis, 
-        postId, 
-        questionId: currentQuestion.id, 
-        answer 
-      });
-
-      // Get updated stats for scoring
-      const questionStats = await getQuestionStats({
-        redis,
-        postId,
-        questionId: currentQuestion.id,
-        cardIds: currentQuestion.cards.map(card => card.id),
-      });
-
-      // Calculate score for this answer
-      const answerScore = calculateScore({
-        scoringMode: session.scoringMode,
-        question: currentQuestion,
-        answer,
-        questionStats,
-        timeRemaining,
-      });
-
-      session.totalScore += answerScore;
-
-      // Check if game is complete
-      const isGameComplete = session.currentQuestionIndex >= deck.questions.length - 1;
-      
-      if (isGameComplete) {
-        session.gameState = 'finished';
-        session.finishedAt = Date.now();
-        
-        // Update leaderboard
-        await updateLeaderboard({
+        // Get updated stats for accurate scoring
+        const questionStats = await getQuestionStats({
           redis,
           postId,
-          entry: {
-            userId: session.userId,
-            username: session.username,
-            score: session.totalScore,
-            scoringMode: session.scoringMode,
-            completedAt: session.finishedAt,
-          },
+          questionId: question.id,
+          cardIds: question.cards.map(card => card.id),
         });
-      } else {
-        session.currentQuestionIndex++;
+
+        // Calculate accurate score with real community data
+        const questionScore = calculateScore({
+          scoringMode: session.scoringMode,
+          question,
+          answer: answer.answer,
+          questionStats,
+          timeRemaining: answer.timeRemaining,
+        });
+
+        finalScore += questionScore;
       }
 
-      await updatePlayerSession({ redis, postId, session });
+      // Update session to finished state
+      const finishedSession = {
+        ...session,
+        answers,
+        totalScore: finalScore,
+        gameState: 'finished' as const,
+        finishedAt: Date.now(),
+      };
 
-      const response: SubmitAnswerResponse = isGameComplete
-        ? {
-            status: 'success',
-            score: answerScore,
-            questionStats,
-            isGameComplete,
-          }
-        : {
-            status: 'success',
-            score: answerScore,
-            questionStats,
-            isGameComplete,
-            nextQuestionIndex: session.currentQuestionIndex,
-          };
+      await updatePlayerSession({ redis, postId, session: finishedSession });
 
-      res.json(response);
+      // Update leaderboard
+      await updateLeaderboard({
+        redis,
+        postId,
+        entry: {
+          userId: session.userId,
+          username: session.username,
+          score: finalScore,
+          scoringMode: session.scoringMode,
+          completedAt: finishedSession.finishedAt,
+        },
+      });
+
+      res.json({
+        status: 'success',
+        finalScore,
+        session: finishedSession,
+      });
     } catch (error) {
-      console.error('Submit answer error:', error);
+      console.error('Complete game error:', error);
       res.status(500).json({
         status: 'error',
-        message: 'Failed to submit answer',
+        message: 'Failed to complete game',
       });
     }
   }
 );
+
 // Get leaderboard
 router.get('/api/leaderboard', async (_req, res): Promise<void> => {
   const { postId, userId } = getContext();

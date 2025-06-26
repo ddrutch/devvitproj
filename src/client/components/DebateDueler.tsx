@@ -8,7 +8,8 @@ import {
   PlayerSession, 
   InitGameResponse,
   SubmitAnswerResponse,
-  QuestionStats 
+  QuestionStats,
+  PlayerAnswer 
 } from '../../shared/types/game';
 
 type GamePhase = 'welcome' | 'playing' | 'results';
@@ -20,6 +21,10 @@ export const DebateDueler: React.FC = () => {
   const [currentQuestionStats, setCurrentQuestionStats] = useState<QuestionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Local storage for answers during gameplay
+  const [localAnswers, setLocalAnswers] = useState<PlayerAnswer[]>([]);
+  const [localScore, setLocalScore] = useState<number>(0);
 
   // Initialize game data
   useEffect(() => {
@@ -42,6 +47,9 @@ export const DebateDueler: React.FC = () => {
             setGamePhase('results');
           } else if (data.playerSession.gameState === 'playing') {
             setGamePhase('playing');
+            // Load local progress if resuming
+            setLocalAnswers(data.playerSession.answers);
+            setLocalScore(data.playerSession.totalScore);
           }
         }
       } catch (err) {
@@ -74,6 +82,8 @@ export const DebateDueler: React.FC = () => {
       }
       
       setPlayerSession(data.playerSession!);
+      setLocalAnswers([]);
+      setLocalScore(0);
       setGamePhase('playing');
     } catch (err) {
       console.error('Failed to start game:', err);
@@ -83,63 +93,142 @@ export const DebateDueler: React.FC = () => {
     }
   }, [deck]);
 
-  // Updated to handle both string (card ID) and string[] (sequence)
+  // Local answer processing - no Redis calls during gameplay
   const submitAnswer = useCallback(async (answer: string | string[], timeRemaining: number) => {
     if (!playerSession || !deck) return;
     
+    const currentQuestion = deck.questions[playerSession.currentQuestionIndex];
+    if (!currentQuestion) return;
+
     try {
-      const response = await fetch('/api/answer', {
+      // Create answer record locally
+      const answerRecord: PlayerAnswer = {
+        questionId: currentQuestion.id,
+        answer,
+        timeRemaining,
+        timestamp: Date.now(),
+      };
+
+      // Calculate score locally (simplified - we'll get accurate stats at the end)
+      const baseTimeBonus = Math.max(0, timeRemaining * 5);
+      let questionScore = 50 + baseTimeBonus; // Base score + time bonus
+      
+      // For trivia mode, we can calculate exact score locally
+      if (playerSession.scoringMode === 'trivia') {
+        if (currentQuestion.questionType === 'sequence') {
+          const sequence = answer as string[];
+          const correctSequence = currentQuestion.cards
+            .filter(c => c.sequenceOrder !== undefined)
+            .sort((a, b) => (a.sequenceOrder || 0) - (b.sequenceOrder || 0))
+            .map(c => c.id);
+          
+          let correctPositions = 0;
+          sequence.forEach((cardId, index) => {
+            if (index < correctSequence.length && correctSequence[index] === cardId) {
+              correctPositions++;
+            }
+          });
+          
+          const accuracy = correctPositions / correctSequence.length;
+          questionScore = Math.round(accuracy * 100) + baseTimeBonus;
+        } else {
+          const cardId = answer as string;
+          const card = currentQuestion.cards.find(c => c.id === cardId);
+          questionScore = card?.isCorrect ? 100 + baseTimeBonus : 0;
+        }
+      }
+
+      // Update local state
+      const newLocalAnswers = [...localAnswers, answerRecord];
+      const newLocalScore = localScore + questionScore;
+      
+      setLocalAnswers(newLocalAnswers);
+      setLocalScore(newLocalScore);
+
+      // Check if game is complete
+      const isGameComplete = playerSession.currentQuestionIndex >= deck.questions.length - 1;
+      
+      if (isGameComplete) {
+        // Game complete - send all data to server at once
+        await submitFinalResults(newLocalAnswers, newLocalScore);
+        setGamePhase('results');
+      } else {
+        // Move to next question locally
+        setPlayerSession(prev => prev ? {
+          ...prev,
+          currentQuestionIndex: prev.currentQuestionIndex + 1,
+          answers: newLocalAnswers,
+          totalScore: newLocalScore,
+        } : null);
+        
+        // Show temporary results
+        setCurrentQuestionStats({
+          questionId: currentQuestion.id,
+          cardStats: {},
+          totalResponses: 0,
+        });
+        
+        // Small delay before next question
+        setTimeout(() => {
+          setCurrentQuestionStats(null);
+        }, 2000);
+      }
+      
+      return {
+        status: 'success' as const,
+        score: questionScore,
+        questionStats: {
+          questionId: currentQuestion.id,
+          cardStats: {},
+          totalResponses: 0,
+        },
+        isGameComplete,
+        nextQuestionIndex: isGameComplete ? undefined : playerSession.currentQuestionIndex + 1,
+      };
+    } catch (err) {
+      console.error('Failed to process answer:', err);
+      setError('Failed to process answer. Please try again.');
+    }
+  }, [playerSession, deck, localAnswers, localScore]);
+
+  // Submit all results at once when game is complete
+  const submitFinalResults = useCallback(async (answers: PlayerAnswer[], totalScore: number) => {
+    if (!playerSession) return;
+
+    try {
+      const response = await fetch('/api/complete-game', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          typeof answer === 'string' 
-            ? { cardId: answer, timeRemaining }
-            : { sequence: answer, timeRemaining }
-        ),
+        body: JSON.stringify({
+          answers,
+          totalScore,
+        }),
       });
       
-      const data = await response.json() as SubmitAnswerResponse;
+      const data = await response.json();
       
-      if (data.status === 'error') {
-        setError(data.message);
-        return;
+      if (data.status === 'success') {
+        // Update session to finished state
+        setPlayerSession(prev => prev ? {
+          ...prev,
+          answers,
+          totalScore,
+          gameState: 'finished' as const,
+          finishedAt: Date.now(),
+        } : null);
+      } else {
+        console.error('Failed to submit final results:', data.message);
       }
-      
-      // Update question stats for display
-      setCurrentQuestionStats(data.questionStats);
-      
-      // Update player session
-      const updatedSession = {
-        ...playerSession,
-        totalScore: playerSession.totalScore + data.score,
-        currentQuestionIndex: data.nextQuestionIndex ?? playerSession.currentQuestionIndex,
-        gameState: data.isGameComplete ? 'finished' as const : 'playing' as const,
-        finishedAt: data.isGameComplete
-          ? Date.now()
-          : playerSession.finishedAt !== undefined
-            ? playerSession.finishedAt
-            : 0, // fallback to 0 if somehow undefined
-      };
-      
-      setPlayerSession(updatedSession);
-      
-      if (data.isGameComplete) {
-        // Small delay to show final question results before transitioning
-        setTimeout(() => {
-          setGamePhase('results');
-        }, 3000);
-      }
-      
-      return data;
     } catch (err) {
-      console.error('Failed to submit answer:', err);
-      setError('Failed to submit answer. Please try again.');
+      console.error('Failed to submit final results:', err);
     }
-  }, [playerSession, deck]);
+  }, [playerSession]);
 
   const restartGame = useCallback(() => {
     setPlayerSession(null);
     setCurrentQuestionStats(null);
+    setLocalAnswers([]);
+    setLocalScore(0);
     setGamePhase('welcome');
     setError(null);
   }, []);
@@ -180,6 +269,13 @@ export const DebateDueler: React.FC = () => {
     );
   }
 
+  // Create a session with local data for display purposes
+  const displaySession = playerSession ? {
+    ...playerSession,
+    answers: localAnswers,
+    totalScore: localScore,
+  } : null;
+
   switch (gamePhase) {
     case 'welcome':
       return (
@@ -194,7 +290,7 @@ export const DebateDueler: React.FC = () => {
       return (
         <GameScreen
           deck={deck}
-          playerSession={playerSession!}
+          playerSession={displaySession!}
           onSubmitAnswer={submitAnswer}
           currentQuestionStats={currentQuestionStats}
         />
@@ -204,7 +300,7 @@ export const DebateDueler: React.FC = () => {
       return (
         <ResultsScreen
           deck={deck}
-          playerSession={playerSession!}
+          playerSession={displaySession!}
           onRestartGame={restartGame}
         />
       );
