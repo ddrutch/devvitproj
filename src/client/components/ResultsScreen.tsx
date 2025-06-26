@@ -15,7 +15,8 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [playerRank, setPlayerRank] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showAddQuestion, setShowAddQuestion] = useState(false);
+  const [isAddQuestionModalOpen, setIsAddQuestionModalOpen] = useState(false);
+  const [questionType, setQuestionType] = useState<'multiple-choice' | 'sequence'>('multiple-choice');
   const [newQuestion, setNewQuestion] = useState({
     prompt: '',
     cards: ['', '', '', ''],
@@ -26,11 +27,11 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({
     const fetchLeaderboard = async () => {
       try {
         const response = await fetch('/api/leaderboard');
-        const data = await response.json() as LeaderboardResponse;
-        
+        const data = (await response.json()) as LeaderboardResponse;
+
         if (data.status === 'success') {
           setLeaderboard(data.leaderboard);
-          setPlayerRank(data.playerRank);
+          setPlayerRank(data.playerRank ?? null);
         }
       } catch (error) {
         console.error('Failed to fetch leaderboard:', error);
@@ -43,13 +44,24 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({
   }, []);
 
   const handleAddQuestion = async () => {
-    const cards = newQuestion.cards
-      .filter(text => text.trim())
-      .map((text, index) => ({
-        id: `card_${index}`,
-        text: text.trim(),
-        isCorrect: index === newQuestion.correctIndex,
-      }));
+    let cards;
+    if (questionType === 'multiple-choice') {
+      cards = newQuestion.cards
+        .filter(text => text.trim())
+        .map((text, index) => ({
+          id: `card_${index}`,
+          text: text.trim(),
+          isCorrect: index === newQuestion.correctIndex,
+        }));
+    } else {
+      cards = newQuestion.cards
+        .filter(text => text.trim())
+        .map((text, index) => ({
+          id: `step_${index}`,
+          text: text.trim(),
+          sequenceOrder: index + 1,
+        }));
+    }
 
     if (cards.length < 2 || !newQuestion.prompt.trim()) {
       alert('Please provide a question and at least 2 answer options.');
@@ -65,15 +77,15 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({
             prompt: newQuestion.prompt.trim(),
             cards,
             timeLimit: 20,
+            questionType,
           },
         }),
       });
-
       const data = await response.json();
-      
+
       if (data.status === 'success') {
         alert('Question added successfully! It will appear in future games.');
-        setShowAddQuestion(false);
+        setIsAddQuestionModalOpen(false);
         setNewQuestion({ prompt: '', cards: ['', '', '', ''], correctIndex: 0 });
       } else {
         alert(`Failed to add question: ${data.message}`);
@@ -86,175 +98,259 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({
 
   const getScoringModeIcon = () => {
     switch (playerSession.scoringMode) {
-      case 'contrarian': return '🎭';
-      case 'conformist': return '👥';
-      case 'trivia': return '🧠';
-      default: return '🎯';
+      case 'contrarian':
+        return '🎭';
+      case 'conformist':
+        return '👥';
+      case 'trivia':
+        return '🧠';
+      default:
+        return '🎯';
     }
   };
 
-  const getScoreMessage = () => {
-    if (!playerRank) return 'Great job!';
-    if (playerRank === 1) return '🏆 Champion!';
-    if (playerRank <= 3) return '🥉 Top 3!';
-    if (playerRank <= 5) return '⭐ Top 5!';
-    return 'Well played!';
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
-      <div className="max-w-md mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8 pt-8">
-          <h1 className="text-4xl font-bold text-white mb-2">
-            🎉 Game Complete!
-          </h1>
-          <p className="text-blue-200">
-            {getScoreMessage()}
-          </p>
-        </div>
-
+    <div className="h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4 flex flex-col">
+      <div className="flex-grow flex flex-col md:flex-row gap-6">
         {/* Player Score */}
-        <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 backdrop-blur-sm rounded-lg p-6 mb-6">
-          <div className="text-center">
-            <div className="flex items-center justify-center space-x-2 mb-2">
-              <span className="text-2xl">{getScoringModeIcon()}</span>
-              <span className="text-white font-semibold capitalize">{playerSession.scoringMode}</span>
-            </div>
-            <div className="text-4xl font-bold text-white mb-2">{playerSession.totalScore}</div>
-            <div className="text-yellow-200">
-              {playerRank ? `Rank #${playerRank}` : 'Your Score'}
+        <div className="md:flex-[2] lg:flex-[1.5] xl:flex-[1] flex flex-col">
+          <div className="text-center mb-4">
+            <h1 className="text-3xl md:text-4xl font-bold text-white">
+              🎉 Game Complete!
+            </h1>
+          </div>
+          <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 backdrop-blur-sm rounded-xl p-4 flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="flex items-center justify-center space-x-2 mb-2">
+                <span className="text-2xl md:text-3xl">{getScoringModeIcon()}</span>
+                <span className="text-white font-semibold capitalize text-base md:text-lg">
+                  {playerSession.scoringMode}
+                </span>
+              </div>
+              <div className="text-4xl md:text-5xl font-bold text-white mb-2">
+                {playerSession.totalScore}
+              </div>
+              <div className="text-yellow-200 text-md md:text-lg font-medium">
+                {playerRank ? `Rank #${playerRank}` : 'Your Score'}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Leaderboard */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 mb-6">
-          <h3 className="text-white font-bold text-center mb-4">🏆 Leaderboard</h3>
-          
-          {loading ? (
-            <div className="text-center text-blue-200">Loading...</div>
-          ) : leaderboard.length === 0 ? (
-            <div className="text-center text-blue-200">Be the first to play!</div>
-          ) : (
-            <div className="space-y-2">
-              {leaderboard.slice(0, 10).map((entry, index) => (
-                <div
-                  key={entry.userId}
-                  className={`flex items-center justify-between p-2 rounded ${
-                    entry.userId === playerSession.userId
-                      ? 'bg-yellow-500/20 border border-yellow-500/50'
-                      : 'bg-white/5'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <span className="text-white font-bold w-6">
-                      {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
-                    </span>
-                    <span className="text-white">{entry.username}</span>
-                    <span className="text-xs">
-                      {entry.scoringMode === 'contrarian' ? '🎭' : 
-                       entry.scoringMode === 'conformist' ? '👥' : '🧠'}
-                    </span>
+        <div className="md:flex-[3] lg:flex-[2] xl:flex-[1.5] flex flex-col">
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 flex-1 flex flex-col">
+            <h3 className="text-white font-bold text-center mb-4 text-lg md:text-xl">
+              🏆 Leaderboard
+            </h3>
+            {loading ? (
+              <div className="text-center text-blue-200">Loading...</div>
+            ) : leaderboard.length === 0 ? (
+              <div className="text-center text-blue-200">Be the first to play!</div>
+            ) : (
+              <div className="flex-1 flex flex-col justify-center space-y-2">
+                {leaderboard.map((entry, index) => (
+                  <div
+                    key={entry.userId}
+                    className={`flex items-center justify-between p-3 rounded-lg ${
+                      entry.userId === playerSession.userId
+                        ? 'bg-yellow-500/20 border border-yellow-500/50'
+                        : 'bg-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-white font-bold w-6">
+                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
+                      </span>
+                      <span className="text-white truncate max-w-[150px]">
+                        {entry.username}
+                      </span>
+                      <span className="text-sm">
+                        {entry.scoringMode === 'contrarian' ? '🎭' : 
+                         entry.scoringMode === 'conformist' ? '👥' : '🧠'}
+                      </span>
+                    </div>
+                    <span className="text-white font-bold">{entry.score}</span>
                   </div>
-                  <span className="text-white font-bold">{entry.score}</span>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="space-y-3 mb-6">
+        {/* Actions */}
+        <div className="md:flex-[2] lg:flex-[1.5] xl:flex-[1] flex flex-col justify-center space-y-4">
           <button
             onClick={onRestartGame}
-            className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-bold py-3 rounded-lg transition-all"
+            className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-bold py-2 md:py-3 px-4 rounded-lg transition-all text-md"
           >
             🔄 Play Again
           </button>
-          
           <button
-            onClick={() => setShowAddQuestion(!showAddQuestion)}
-            className="w-full bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white font-bold py-3 rounded-lg transition-all"
+            onClick={() => setIsAddQuestionModalOpen(true)}
+            className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white font-bold py-2 md:py-3 px-4 rounded-lg transition-all text-md"
           >
-            ➕ Add Your Question
+            ➕ Add Question
           </button>
         </div>
+      </div>
 
-        {/* Add Question Form */}
-        {showAddQuestion && (
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 mb-6">
-            <h4 className="text-white font-bold mb-4">Add Your Question</h4>
-            
-            <div className="space-y-3">
+      {/* Add Question Modal */}
+      {isAddQuestionModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-10">
+          <div className="bg-gradient-to-br from-purple-800 to-blue-900 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h4 className="text-white font-bold text-xl">Add Your Question</h4>
+              <button 
+                onClick={() => setIsAddQuestionModalOpen(false)}
+                className="text-white text-3xl"
+              >
+                ×
+              </button>
+            </div>
+            <div className="space-y-4">
+              {/* Question Type Selector */}
               <div>
-                <label className="block text-blue-200 text-sm mb-1">Question Prompt</label>
+                <label className="block text-blue-200 text-lg mb-2">Question Type</label>
+                <div className="flex space-x-4">
+                  <button
+                    type="button"
+                    onClick={() => setQuestionType('multiple-choice')}
+                    className={`px-4 py-2 rounded-lg ${
+                      questionType === 'multiple-choice'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-white/20 text-blue-200 hover:bg-white/30'
+                    }`}
+                  >
+                    Multiple Choice
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuestionType('sequence')}
+                    className={`px-4 py-2 rounded-lg ${
+                      questionType === 'sequence'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-white/20 text-blue-200 hover:bg-white/30'
+                    }`}
+                  >
+                    Sequence Order
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-blue-200 text-lg mb-2">Question Prompt</label>
                 <input
                   type="text"
                   value={newQuestion.prompt}
                   onChange={(e) => setNewQuestion({ ...newQuestion, prompt: e.target.value })}
-                  placeholder="Who would win in a battle between..."
-                  className="w-full p-2 rounded bg-white/20 text-white placeholder-blue-300 border border-white/30 focus:border-white/50 focus:outline-none"
+                  placeholder="Enter your question..."
+                  className="w-full p-2 md:p-3 rounded-lg bg-white/20 text-white placeholder-blue-300 border border-white/30 focus:border-white/50 focus:outline-none text-lg"
                 />
               </div>
-              
-              {newQuestion.cards.map((card, index) => (
-                <div key={index}>
-                  <label className="block text-blue-200 text-sm mb-1">
-                    Answer {index + 1} {index < 2 && <span className="text-red-400">*</span>}
+
+              {/* Sequence-specific inputs */}
+              {questionType === 'sequence' ? (
+                <div>
+                  <label className="block text-blue-200 text-lg mb-2">
+                    Arrange cards in correct order:
                   </label>
-                  <div className="flex space-x-2">
-                    <input
-                      type="text"
-                      value={card}
-                      onChange={(e) => {
-                        const newCards = [...newQuestion.cards];
-                        newCards[index] = e.target.value;
-                        setNewQuestion({ ...newQuestion, cards: newCards });
-                      }}
-                      placeholder={`Option ${index + 1}`}
-                      className="flex-1 p-2 rounded bg-white/20 text-white placeholder-blue-300 border border-white/30 focus:border-white/50 focus:outline-none"
-                    />
+                  <div className="space-y-3">
+                    {newQuestion.cards.map((text, index) => (
+                      <div 
+                        key={index} 
+                        className="bg-white/10 rounded-lg p-3 flex items-center"
+                      >
+                        <span className="text-white font-bold mr-3">{index + 1}.</span>
+                        <input
+                          type="text"
+                          value={text}
+                          onChange={(e) => {
+                            const newCards = [...newQuestion.cards];
+                            newCards[index] = e.target.value;
+                            setNewQuestion({ ...newQuestion, cards: newCards });
+                          }}
+                          placeholder={`Step ${index + 1}`}
+                          className="flex-1 bg-transparent text-white placeholder-blue-300 border-b border-white/30 focus:border-white/50 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newCards = [...newQuestion.cards];
+                            newCards.splice(index, 1);
+                            setNewQuestion({ ...newQuestion, cards: newCards });
+                          }}
+                          className="ml-3 text-red-400 hover:text-red-300 text-lg"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    
                     <button
-                      onClick={() => setNewQuestion({ ...newQuestion, correctIndex: index })}
-                      className={`px-3 py-2 rounded text-sm ${
-                        newQuestion.correctIndex === index
-                          ? 'bg-green-500 text-white'
-                          : 'bg-white/20 text-blue-200 hover:bg-white/30'
-                      }`}
-                      title="Mark as correct answer (for trivia mode)"
+                      type="button"
+                      onClick={() => setNewQuestion({
+                        ...newQuestion,
+                        cards: [...newQuestion.cards, '']
+                      })}
+                      className="mt-2 text-blue-300 hover:text-blue-100 flex items-center"
                     >
-                      ✓
+                      <span className="mr-2">+</span> Add another step
                     </button>
                   </div>
                 </div>
-              ))}
-              
-              <div className="flex space-x-2 pt-2">
+              ) : (
+                // Multiple choice inputs
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {newQuestion.cards.map((card, index) => (
+                    <div key={index} className="bg-white/10 rounded-lg p-3">
+                      <label className="block text-blue-200 text-lg mb-2">Answer {index + 1}</label>
+                      <div className="flex space-x-2">
+                        <input
+                          type="text"
+                          value={card}
+                          onChange={(e) => {
+                            const newCards = [...newQuestion.cards];
+                            newCards[index] = e.target.value;
+                            setNewQuestion({ ...newQuestion, cards: newCards });
+                          }}
+                          placeholder={`Option ${index + 1}`}
+                          className="flex-1 p-2 md:p-3 rounded-lg bg-white/20 text-white placeholder-blue-300 border border-white/30 focus:border-white/50 focus:outline-none text-lg"
+                        />
+                        <button
+                          onClick={() => setNewQuestion({ ...newQuestion, correctIndex: index })}
+                          className={`px-3 py-2 rounded-lg text-lg ${
+                            newQuestion.correctIndex === index
+                              ? 'bg-green-500 text-white'
+                              : 'bg-white/20 text-blue-200 hover:bg-white/30'
+                          }`}
+                        >
+                          ✓
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex space-x-4 pt-4">
                 <button
-                  onClick={handleAddQuestion}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded transition-colors"
+                  onClick={() => handleAddQuestion()}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 md:py-3 rounded-lg transition-colors text-lg"
                 >
                   Submit Question
                 </button>
                 <button
-                  onClick={() => setShowAddQuestion(false)}
-                  className="px-4 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 rounded transition-colors"
+                  onClick={() => setIsAddQuestionModalOpen(false)}
+                  className="px-6 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 md:py-3 rounded-lg transition-colors text-lg"
                 >
                   Cancel
                 </button>
               </div>
             </div>
           </div>
-        )}
-
-        {/* Footer */}
-        <div className="text-center">
-          <p className="text-blue-300 text-xs">
-            Thanks for playing {deck.title}!
-          </p>
         </div>
-      </div>
+      )}
     </div>
   );
 };

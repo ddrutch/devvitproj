@@ -14,40 +14,44 @@ defineConfig({
   menu: { enable: false },
 });
 
-Devvit.addCustomPostType({
-  name: 'Debate Dueler',
-  height: 'tall',
-  render: (context) => {
-    const { mount } = useWebView();
+// Devvit.addCustomPostType({
+//   name: 'Debate Dueler',
+//   height: 'tall',
+//   render: (context) => {
+//     const { mount } = useWebView({
+      
+//       onMessage: async (event, { postMessage }) => {
+//       }
+//     });
 
-    return (
-      <vstack alignment="center middle" gap="large" grow padding="large">
-        <text size="xxlarge" weight="bold">🥊 Debate Dueler</text>
+//     return (
+//       <vstack alignment="center middle" gap="large" grow padding="large">
+//         <text size="xxlarge" weight="bold">🥊 Debate Dueler</text>
         
-        <image
-          url="loading.gif"
-          description="Loading animation"
-          imageWidth={200}
-          imageHeight={200}
-          resizeMode="fit"
-        />
+//         <image
+//           url="loading.gif"
+//           description="Loading animation"
+//           imageWidth={200}
+//           imageHeight={200}
+//           resizeMode="fit"
+//         />
 
-        <vstack alignment="center" gap="medium">
-          <text size="large" weight="bold" color="orange">Choose Your Strategy:</text>
-          <text size="medium">🎭 Contrarian • 👥 Conformist • 🧠 Trivia</text>
-        </vstack>
+//         <vstack alignment="center" gap="medium">
+//           <text size="large" weight="bold" color="orange">Choose Your Strategy:</text>
+//           <text size="medium">🎭 Contrarian • 👥 Conformist • 🧠 Trivia</text>
+//         </vstack>
 
-        <button
-          size="large"
-          appearance="primary"
-          onPress={() => mount()}
-        >
-          🚀 Start Dueling!
-        </button>
-      </vstack>
-    );
-  },
-});
+//         <button
+//           size="large"
+//           appearance="primary"
+//           onPress={() => mount()}
+//         >
+//           🚀 Start Dueling!
+//         </button>
+//       </vstack>
+//     );
+//   },
+// });
 
 export const Preview: Devvit.BlockComponent<{ text?: string }> = ({ text = 'Loading...' }) => {
   return (

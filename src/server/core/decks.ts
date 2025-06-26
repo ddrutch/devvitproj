@@ -12,6 +12,7 @@ export const getDefaultDeck = (): Deck => ({
     {
       id: 'q1',
       prompt: 'In a battle royale, who emerges victorious?',
+      questionType: 'multiple-choice',
       timeLimit: 20,
       cards: [
         { id: 'bear', text: '🐻 Grizzly Bear', isCorrect: false },
@@ -23,6 +24,7 @@ export const getDefaultDeck = (): Deck => ({
     {
       id: 'q2',
       prompt: 'Which superhero wins in a no-holds-barred fight?',
+      questionType: 'multiple-choice',
       timeLimit: 20,
       cards: [
         { id: 'superman', text: '🦸‍♂️ Superman', isCorrect: true },
@@ -34,6 +36,7 @@ export const getDefaultDeck = (): Deck => ({
     {
       id: 'q3',
       prompt: 'In a zombie apocalypse, what\'s your best weapon?',
+      questionType: 'multiple-choice',
       timeLimit: 20,
       cards: [
         { id: 'katana', text: '⚔️ Katana', isCorrect: false },
@@ -45,6 +48,7 @@ export const getDefaultDeck = (): Deck => ({
     {
       id: 'q4',
       prompt: 'Which food would survive longest in your fridge?',
+      questionType: 'multiple-choice',
       timeLimit: 20,
       cards: [
         { id: 'honey', text: '🍯 Honey', isCorrect: true },
@@ -56,6 +60,7 @@ export const getDefaultDeck = (): Deck => ({
     {
       id: 'q5',
       prompt: 'What\'s the most useless superpower?',
+      questionType: 'multiple-choice',     
       timeLimit: 20,
       cards: [
         { id: 'talk-to-fish', text: '🐠 Talk to Fish', isCorrect: false },
@@ -64,6 +69,68 @@ export const getDefaultDeck = (): Deck => ({
         { id: 'super-smell', text: '👃 Super Smell', isCorrect: false },
       ],
     },
+    
+    {
+      id: 'q6',
+      prompt: 'Order the steps for a perfect bank heist:',
+      questionType: 'sequence',
+      timeLimit: 30,
+      cards: [
+        { id: 'step1', text: 'Case the joint', sequenceOrder: 1 },
+        { id: 'step2', text: 'Disable security', sequenceOrder: 2 },
+        { id: 'step3', text: 'Grab the loot', sequenceOrder: 3 },
+        { id: 'step4', text: 'Escape clean', sequenceOrder: 4 },
+      ],
+    }
+    
+  ],
+});
+
+export const getOperationsDeck = (): Deck => ({
+  id: 'order-of-operations',
+  title: 'Perfect Sequence',
+  description: 'Arrange steps in the correct order',
+  theme: 'sequence',
+  createdBy: 'system',
+  createdAt: Date.now(),
+  questions: [
+    {
+      id: 'q1',
+      prompt: 'Order the steps for a perfect bank heist:',
+      questionType: 'sequence',
+      timeLimit: 30,
+      cards: [
+        { id: 'step1', text: 'Case the joint', sequenceOrder: 1 },
+        { id: 'step2', text: 'Disable security', sequenceOrder: 2 },
+        { id: 'step3', text: 'Grab the loot', sequenceOrder: 3 },
+        { id: 'step4', text: 'Escape clean', sequenceOrder: 4 },
+      ],
+    },
+    {
+      id: 'q2',
+      prompt: 'Arrange the steps to make a perfect omelette:',
+      questionType: 'sequence',
+      timeLimit: 30,
+      cards: [
+        { id: 'step1', text: 'Crack eggs into bowl', sequenceOrder: 1 },
+        { id: 'step2', text: 'Whisk eggs with salt/pepper', sequenceOrder: 2 },
+        { id: 'step3', text: 'Heat butter in pan', sequenceOrder: 3 },
+        { id: 'step4', text: 'Pour eggs into pan', sequenceOrder: 4 },
+        { id: 'step5', text: 'Fold and serve', sequenceOrder: 5 },
+      ],
+    },
+    {
+      id: 'q3',
+      prompt: 'Which superpower would you want?',
+      questionType: 'multiple-choice',
+      timeLimit: 20,
+      cards: [
+        { id: 'fly', text: 'Flight' },
+        { id: 'invis', text: 'Invisibility' },
+        { id: 'strength', text: 'Super strength' },
+        { id: 'tele', text: 'Teleportation' },
+      ],
+    }
   ],
 });
 

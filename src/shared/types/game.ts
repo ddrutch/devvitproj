@@ -1,17 +1,20 @@
 export type ScoringMode = 'contrarian' | 'conformist' | 'trivia';
+export type QuestionType = 'multiple-choice' | 'sequence';
 
 export type GameCard = {
   id: string;
   text: string;
   isCorrect?: boolean; // For trivia mode
+  sequenceOrder?: number; // For sequence questions
 };
 
 export type Question = {
   id: string;
   prompt: string;
   cards: GameCard[];
-  timeLimit: number; // in seconds
-  authorUsername?: string; // For user-contributed questions
+  timeLimit: number;
+  authorUsername?: string;
+  questionType?: QuestionType; // NEW: Type of question
 };
 
 export type Deck = {
@@ -28,7 +31,7 @@ export type GameState = 'waiting' | 'playing' | 'finished';
 
 export type PlayerAnswer = {
   questionId: string;
-  cardId: string;
+  answer: string | string[]; // CHANGED: Can be single ID or sequence
   timeRemaining: number;
   timestamp: number;
 };

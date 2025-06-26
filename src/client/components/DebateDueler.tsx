@@ -83,14 +83,19 @@ export const DebateDueler: React.FC = () => {
     }
   }, [deck]);
 
-  const submitAnswer = useCallback(async (cardId: string, timeRemaining: number) => {
+  // Updated to handle both string (card ID) and string[] (sequence)
+  const submitAnswer = useCallback(async (answer: string | string[], timeRemaining: number) => {
     if (!playerSession || !deck) return;
     
     try {
       const response = await fetch('/api/answer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cardId, timeRemaining }),
+        body: JSON.stringify(
+          typeof answer === 'string' 
+            ? { cardId: answer, timeRemaining }
+            : { sequence: answer, timeRemaining }
+        ),
       });
       
       const data = await response.json() as SubmitAnswerResponse;
@@ -109,7 +114,11 @@ export const DebateDueler: React.FC = () => {
         totalScore: playerSession.totalScore + data.score,
         currentQuestionIndex: data.nextQuestionIndex ?? playerSession.currentQuestionIndex,
         gameState: data.isGameComplete ? 'finished' as const : 'playing' as const,
-        finishedAt: data.isGameComplete ? Date.now() : undefined,
+        finishedAt: data.isGameComplete
+          ? Date.now()
+          : playerSession.finishedAt !== undefined
+            ? playerSession.finishedAt
+            : 0, // fallback to 0 if somehow undefined
       };
       
       setPlayerSession(updatedSession);
