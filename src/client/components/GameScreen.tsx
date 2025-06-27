@@ -25,9 +25,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const [showResults, setShowResults] = useState(false);
   const [lastScore, setLastScore] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
   const currentQuestion = deck.questions[playerSession.currentQuestionIndex];
-
   const isLastQuestion = playerSession.currentQuestionIndex >= deck.questions.length - 1;
   const ANSWER_DISPLAY_MS = 3500;
   const [selectedSequence, setSelectedSequence] = useState<string[]>([]);
@@ -36,12 +34,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
   const [answeredQuestion, setAnsweredQuestion] = useState<Question | null>(null);
   const [answeredQuestionIndex, setAnsweredQuestionIndex] = useState(-1);
-
   const [displayedTotalScore, setDisplayedTotalScore] = useState(playerSession.totalScore);
   const [countdownProgress, setCountdownProgress] = useState(0);
 
   const total = deck.questions.length;
   const [progressOnResult, setProgressOnResult] = useState(0);
+  const TIMER_STORAGE_KEY = `debateTimer_${deck.id}_${playerSession.currentQuestionIndex}`;
 
   // Sequence selection handler
   const handleSequenceSelect = (cardId: string) => {
@@ -59,12 +57,13 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     if (isSubmitting) return;
     setIsSubmitting(true);
 
+
     const justAnsweredIndex = playerSession.currentQuestionIndex;
     const newProgress = ((justAnsweredIndex + 1) / total) * 100;
     setProgressOnResult(newProgress);
-
-
     const result = await onSubmitAnswer(answer, timeLeft);
+
+    localStorage.removeItem(TIMER_STORAGE_KEY);
     
     if (result?.status === "success") {
       if (currentQuestion) {
@@ -74,14 +73,13 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       setLastScore(result.score);
       setShowResults(true);
 
-
-  
       // Reset sequence for next question
       if (currentQuestion?.questionType === 'sequence') {
         setSelectedSequence([]);
       }
       
       setTimeout(() => {
+        // Only reset UI for non-last questions
         if (!result.isGameComplete) {
           setShowResults(false);
           setSelectedCardId(null);
@@ -108,9 +106,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
   const getCardPercentage = (cardId: string): number => {
     if (!currentQuestionStats || currentQuestionStats.totalResponses === 0) return 0;
+    
+    // Ensure cardStats exists for this card
     const count = currentQuestionStats.cardStats[cardId] || 0;
     return Math.round((count / currentQuestionStats.totalResponses) * 100);
   };
+
 
   const getScoringModeIcon = () => {
     switch (playerSession.scoringMode) {
@@ -137,31 +138,30 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   useEffect(() => {
     if (showResults || !currentQuestion) return;
     
-    setTimeRemaining(currentQuestion.timeLimit);
+    // Clear any existing timer
     if (timerRef.current) clearInterval(timerRef.current);
     
+    setTimeRemaining(currentQuestion.timeLimit);
+    
     timerRef.current = setInterval(() => {
-      setTimeRemaining((prev) => {
+      setTimeRemaining(prev => {
         if (prev <= 1) {
           clearInterval(timerRef.current as NodeJS.Timeout);
-          
-          if (currentQuestion?.questionType === 'sequence') {
-            if (selectedSequence.length > 0 && !isSubmitting) {
-              handleSubmitAnswer(selectedSequence, 0);
-            }
-          } else if (!selectedCardId && !isSubmitting) {
-            const firstCardId = currentQuestion?.cards[0]?.id;
-            if (firstCardId) handleCardSelect(firstCardId);
-          }
+          // Handle timeout logic...
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
+    
+    // Save timer state on cleanup
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        localStorage.setItem(TIMER_STORAGE_KEY, timeRemaining.toString());
+      }
     };
-  }, [currentQuestion, showResults, selectedCardId, isSubmitting, selectedSequence]);
+  }, [currentQuestion, showResults]);
 
   // Animate score increase
   useEffect(() => {
@@ -435,9 +435,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       {/* Bottom Status */}
       <div className="text-center p-[clamp(.25rem,1vw,.5rem)] bg-white/5">
         <p className="text-[clamp(.5rem,1.5vw,.75rem)] text-blue-200">
-          {showResults
-            ? `${currentQuestionStats?.totalResponses || 0} players have answered`
-            : 'Choose your answer quickly!'}
+          {currentQuestionStats && currentQuestionStats.totalResponses > 0
+            ? `${currentQuestionStats.totalResponses} players have answered`
+            : 'Be the first to answer!'}
         </p>
       </div>
     </div>

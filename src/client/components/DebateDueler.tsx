@@ -15,6 +15,8 @@ import {
 type GamePhase = 'welcome' | 'playing' | 'results';
 
 export const DebateDueler: React.FC = () => {
+  const LOCAL_STORAGE_KEY = 'debateDuelerState';
+
   const [gamePhase, setGamePhase] = useState<GamePhase>('welcome');
   const [deck, setDeck] = useState<Deck | null>(null);
   const [playerSession, setPlayerSession] = useState<PlayerSession | null>(null);
@@ -26,10 +28,29 @@ export const DebateDueler: React.FC = () => {
   const [localAnswers, setLocalAnswers] = useState<PlayerAnswer[]>([]);
   const [localScore, setLocalScore] = useState<number>(0);
 
+  useEffect(() => {
+    if (gamePhase === 'playing' && playerSession && deck) {
+      const stateToSave = {
+        gamePhase,
+        deckId: deck.id,
+        playerSession,
+        localAnswers,
+        localScore,
+        currentQuestionStats
+      };
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(stateToSave));
+    }
+  }, [gamePhase, playerSession, deck, localAnswers, localScore, currentQuestionStats]);
+
+
   // Initialize game data
   useEffect(() => {
     const initGame = async () => {
       try {
+
+        const savedState = localStorage.getItem(LOCAL_STORAGE_KEY);
+        let useSavedState = false;
+        
         const response = await fetch('/api/init');
         const data = await response.json() as InitGameResponse;
         
@@ -37,17 +58,36 @@ export const DebateDueler: React.FC = () => {
           setError(data.message);
           return;
         }
-        
+
+        if (savedState) {
+          try {
+            const parsedState = JSON.parse(savedState);
+            if (data.deck.id === parsedState.deckId) {
+              useSavedState = true;
+              setGamePhase(parsedState.gamePhase);
+              setPlayerSession(parsedState.playerSession);
+              setLocalAnswers(parsedState.localAnswers);
+              setLocalScore(parsedState.localScore);
+              setCurrentQuestionStats(parsedState.currentQuestionStats);
+            } else {
+              // Remove outdated saved state
+              localStorage.removeItem(LOCAL_STORAGE_KEY);
+            }
+          } catch (e) {
+            console.error('Error parsing saved state:', e);
+            localStorage.removeItem(LOCAL_STORAGE_KEY);
+          }
+        }
+
         setDeck(data.deck);
         
         // If player has an existing session, determine phase
-        if (data.playerSession) {
+        if (!useSavedState && data.playerSession) {
           setPlayerSession(data.playerSession);
           if (data.playerSession.gameState === 'finished') {
             setGamePhase('results');
           } else if (data.playerSession.gameState === 'playing') {
             setGamePhase('playing');
-            // Load local progress if resuming
             setLocalAnswers(data.playerSession.answers);
             setLocalScore(data.playerSession.totalScore);
           }
@@ -63,11 +103,28 @@ export const DebateDueler: React.FC = () => {
     initGame();
   }, []);
 
+  useEffect(() => {
+    if (gamePhase === 'results') {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      clearTimerStorage();
+    }
+  }, [gamePhase]);
+
+  const clearTimerStorage = () => {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('debateTimer_')) {
+        localStorage.removeItem(key);
+      }
+    }
+  };
+
   const startGame = useCallback(async (scoringMode: ScoringMode) => {
     if (!deck) return;
     
     setLoading(true);
     try {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
       const response = await fetch('/api/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -151,7 +208,9 @@ export const DebateDueler: React.FC = () => {
       if (isGameComplete) {
         // Game complete - send all data to server at once
         await submitFinalResults(newLocalAnswers, newLocalScore);
-        setGamePhase('results');
+        setTimeout(() => {
+          setGamePhase('results');
+        }, 3500);
       } else {
         // Move to next question locally
         setPlayerSession(prev => prev ? {
@@ -196,6 +255,8 @@ export const DebateDueler: React.FC = () => {
     if (!playerSession) return;
 
     try {
+      clearTimerStorage();
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
       const response = await fetch('/api/complete-game', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -221,10 +282,14 @@ export const DebateDueler: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to submit final results:', err);
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      clearTimerStorage();
     }
   }, [playerSession]);
 
   const restartGame = useCallback(() => {
+    clearTimerStorage();
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
     setPlayerSession(null);
     setCurrentQuestionStats(null);
     setLocalAnswers([]);

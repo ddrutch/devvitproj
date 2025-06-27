@@ -24,6 +24,7 @@ import {
   updateLeaderboard,
   getLeaderboard,
   getPlayerRank,
+  getQuestionStatsKey, 
   saveDeck,
   getDeck,
 } from './core/game';
@@ -53,8 +54,23 @@ router.get('/api/init', async (_req, res): Promise<void> => {
     if (!deck) {
       deck = getDefaultDeck();
       await saveDeck({ redis, postId, deck });
+      
+      // Initialize stats for all questions
+      for (const question of deck.questions) {
+        const statsKey = getQuestionStatsKey(postId, question.id);
+        
+        // Create an object with all card fields set to '0'
+        const fieldValues: Record<string, string> = {};
+        question.cards.forEach(card => {
+          fieldValues[card.id] = '0';
+        });
+        
+        // Set all fields at once
+        await redis.hset(statsKey, fieldValues);
+        await redis.set(`${statsKey}:total`, '0');
+      }
     }
-
+    
     // Get existing player session if user is logged in
     let playerSession = null;
     if (userId) {

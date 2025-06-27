@@ -10,10 +10,10 @@ import {
 } from '../../shared/types/game';
 
 // Redis key generators
-const getPlayerSessionKey = (postId: string, userId: string) => `game:${postId}:player:${userId}`;
-const getQuestionStatsKey = (postId: string, questionId: string) => `stats:${postId}:${questionId}`;
-const getLeaderboardKey = (postId: string) => `leaderboard:${postId}`;
-const getDeckKey = (postId: string) => `deck:${postId}`;
+export const getPlayerSessionKey = (postId: string, userId: string) => `game:${postId}:player:${userId}`;
+export const getQuestionStatsKey = (postId: string, questionId: string) => `stats:${postId}:${questionId}`;
+export const getLeaderboardKey = (postId: string) => `leaderboard:${postId}`;
+export const getDeckKey = (postId: string) => `deck:${postId}`;
 
 export const initPlayerSession = async ({
   redis,
@@ -79,22 +79,21 @@ export const recordAnswer = async ({
   redis: RedisClient;
   postId: string;
   questionId: string;
-  answer: string | string[]; // Can be single card ID or sequence
+  answer: string | string[];
 }): Promise<void> => {
   const statsKey = getQuestionStatsKey(postId, questionId);
   
+  // Increment total responses
+  await redis.incrby(`${statsKey}:total`, 1);
+  
   if (typeof answer === 'string') {
     // Single card answer
-    const cardKey = `${statsKey}:${answer}`;
-    await redis.incrby(cardKey, 1);
-    await redis.incrby(`${statsKey}:total`, 1);
+    await redis.hincrby(statsKey, answer, 1);
   } else {
-    // Sequence answer - record each card
+    // Sequence answer - increment each card
     for (const cardId of answer) {
-      const cardKey = `${statsKey}:${cardId}`;
-      await redis.incrby(cardKey, 1);
+      await redis.hincrby(statsKey, cardId, 1);
     }
-    await redis.incrby(`${statsKey}:total`, answer.length);
   }
 };
 
@@ -110,14 +109,17 @@ export const getQuestionStats = async ({
   cardIds: string[];
 }): Promise<QuestionStats> => {
   const statsKey = getQuestionStatsKey(postId, questionId);
+  
+  // Get all card stats at once
+  const cardStatsRaw = await redis.hgetall(statsKey);
   const cardStats: Record<string, number> = {};
   
-  // Get counts for each card
-  for (const cardId of cardIds) {
-    const count = await redis.get(`${statsKey}:${cardId}`);
-    cardStats[cardId] = count ? parseInt(count) : 0;
+  // Convert string values to numbers
+  for (const [cardId, count] of Object.entries(cardStatsRaw)) {
+    cardStats[cardId] = parseInt(count) || 0;
   }
   
+  // Get total responses
   const totalResponses = await redis.get(`${statsKey}:total`);
   
   return {
@@ -222,6 +224,15 @@ export const updateLeaderboard = async ({
 }): Promise<void> => {
   const leaderboardKey = getLeaderboardKey(postId);
   
+  // NEW: Check if user already has an entry
+  const entryKey = `${leaderboardKey}:${entry.userId}`;
+  const existingEntry = await redis.exists(entryKey);
+  
+  if (existingEntry) {
+    console.log(`User ${entry.userId} already has a leaderboard entry. Skipping update.`);
+    return;
+  }
+
   console.log(`Updating leaderboard for post ${postId}:`, {
     userId: entry.userId,
     score: entry.score,
@@ -233,7 +244,6 @@ export const updateLeaderboard = async ({
   console.log(`zadd result: ${zaddResult}`);
   
   // Store full entry data
-  const entryKey = `${leaderboardKey}:${entry.userId}`;
   const setResult = await redis.set(entryKey, JSON.stringify(entry));
   console.log(`set result: ${setResult}`);
 };
