@@ -183,7 +183,7 @@ export const DebateDueler: React.FC = () => {
           totalResponses: 0,
         },
         isGameComplete,
-        nextQuestionIndex: isGameComplete ? undefined : playerSession.currentQuestionIndex + 1,
+        ...(!isGameComplete && { nextQuestionIndex: playerSession.currentQuestionIndex + 1 })
       };
     } catch (err) {
       console.error('Failed to process answer:', err);

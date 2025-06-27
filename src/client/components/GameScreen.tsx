@@ -3,7 +3,8 @@ import {
   Deck, 
   PlayerSession, 
   QuestionStats, 
-  SubmitAnswerResponse 
+  SubmitAnswerResponse,
+  Question,
 } from '../../shared/types/game';
 
 interface GameScreenProps {
@@ -24,43 +25,23 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const [showResults, setShowResults] = useState(false);
   const [lastScore, setLastScore] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [currentDisplayQuestion, setCurrentDisplayQuestion] = useState(playerSession.currentQuestionIndex);
   
   const currentQuestion = deck.questions[playerSession.currentQuestionIndex];
-  const displayQuestion = deck.questions[currentDisplayQuestion];
+
   const isLastQuestion = playerSession.currentQuestionIndex >= deck.questions.length - 1;
-  const ANSWER_DISPLAY_MS = 5000;
+  const ANSWER_DISPLAY_MS = 3500;
   const [selectedSequence, setSelectedSequence] = useState<string[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Timer effect
-  useEffect(() => {
-    if (showResults || !currentQuestion) return;
-    setTimeRemaining(currentQuestion.timeLimit);
-    setCurrentDisplayQuestion(playerSession.currentQuestionIndex);
-    if (timerRef.current) clearInterval(timerRef.current);
-    
-    timerRef.current = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          if (currentQuestion?.questionType === 'sequence') {
-            if (selectedSequence.length > 0 && !isSubmitting) {
-              handleSubmitAnswer(selectedSequence, 0);
-            }
-          } else if (!selectedCardId && !isSubmitting) {
-            const firstCardId = currentQuestion?.cards[0]?.id;
-            if (firstCardId) handleCardSelect(firstCardId);
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [currentQuestion, showResults, selectedCardId, isSubmitting, selectedSequence]);
+
+  const [answeredQuestion, setAnsweredQuestion] = useState<Question | null>(null);
+  const [answeredQuestionIndex, setAnsweredQuestionIndex] = useState(-1);
+
+  const [displayedTotalScore, setDisplayedTotalScore] = useState(playerSession.totalScore);
+  const [countdownProgress, setCountdownProgress] = useState(0);
+
+  const total = deck.questions.length;
+  const [progressOnResult, setProgressOnResult] = useState(0);
 
   // Sequence selection handler
   const handleSequenceSelect = (cardId: string) => {
@@ -76,14 +57,25 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   // Submit handler
   const handleSubmitAnswer = useCallback(async (answer: string | string[], timeLeft: number) => {
     if (isSubmitting) return;
-    
     setIsSubmitting(true);
+
+    const justAnsweredIndex = playerSession.currentQuestionIndex;
+    const newProgress = ((justAnsweredIndex + 1) / total) * 100;
+    setProgressOnResult(newProgress);
+
+
     const result = await onSubmitAnswer(answer, timeLeft);
     
     if (result?.status === "success") {
+      if (currentQuestion) {
+        setAnsweredQuestion(currentQuestion);
+      }
+      setAnsweredQuestionIndex(playerSession.currentQuestionIndex);
       setLastScore(result.score);
       setShowResults(true);
-      
+
+
+  
       // Reset sequence for next question
       if (currentQuestion?.questionType === 'sequence') {
         setSelectedSequence([]);
@@ -99,7 +91,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     } else {
       setIsSubmitting(false);
     }
-  }, [onSubmitAnswer, isSubmitting, currentQuestion]);
+  }, [onSubmitAnswer, isSubmitting, currentQuestion, playerSession]);
 
   // Handle card select based on question type
   const handleCardSelect = (cardId: string) => {
@@ -129,6 +121,98 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     }
   };
 
+  const displayQuestion = showResults ? answeredQuestion : currentQuestion;
+  const displayQuestionIndex = showResults ? answeredQuestionIndex : playerSession.currentQuestionIndex;
+
+  const getProgressPercentage = () => {
+    if (showResults) {
+      return progressOnResult;
+    }
+    return (playerSession.currentQuestionIndex / total) * 100;
+  };
+
+
+  const progressPercentage = getProgressPercentage();
+  // Timer effect
+  useEffect(() => {
+    if (showResults || !currentQuestion) return;
+    
+    setTimeRemaining(currentQuestion.timeLimit);
+    if (timerRef.current) clearInterval(timerRef.current);
+    
+    timerRef.current = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current as NodeJS.Timeout);
+          
+          if (currentQuestion?.questionType === 'sequence') {
+            if (selectedSequence.length > 0 && !isSubmitting) {
+              handleSubmitAnswer(selectedSequence, 0);
+            }
+          } else if (!selectedCardId && !isSubmitting) {
+            const firstCardId = currentQuestion?.cards[0]?.id;
+            if (firstCardId) handleCardSelect(firstCardId);
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [currentQuestion, showResults, selectedCardId, isSubmitting, selectedSequence]);
+
+  // Animate score increase
+  useEffect(() => {
+    if (showResults) {
+      const targetScore = playerSession.totalScore;
+      const startScore = targetScore - lastScore;
+      const duration = 750; // 0.75 seconds
+      const startTime = Date.now();
+      
+      const animateScore = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const currentScore = Math.floor(startScore + lastScore * progress);
+        setDisplayedTotalScore(currentScore);
+        
+        if (progress < 1) {
+          requestAnimationFrame(animateScore);
+        }
+      };
+      
+      requestAnimationFrame(animateScore);
+    } else {
+      setDisplayedTotalScore(playerSession.totalScore);
+    }
+  }, [playerSession.totalScore, showResults, lastScore]);
+
+  // Countdown progress during answer display
+  useEffect(() => {
+    if (showResults && !isLastQuestion) {
+      setCountdownProgress(0);
+      const startTime = Date.now();
+      
+      const interval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / ANSWER_DISPLAY_MS, 1);
+        setCountdownProgress(progress * 100);
+        
+        if (progress >= 1) {
+          clearInterval(interval);
+        }
+      }, 50);
+      
+      return () => {
+        clearInterval(interval);
+        // Reset progress when effect cleans up
+        setCountdownProgress(0);
+      };
+    }
+  }, [showResults, isLastQuestion]);
+
+
   return (
     <div className="h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex flex-col overflow-hidden">
       {/* Top Bar */}
@@ -141,11 +225,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             </span>
           </div>
           <div className="text-[clamp(.5rem,1.5vw,.75rem)] opacity-75 mt-[clamp(.25rem,1vw,.5rem)]">
-            Q{playerSession.currentQuestionIndex + 1}/{deck.questions.length}
+            Q{displayQuestionIndex + 1}/{deck.questions.length}
           </div>
         </div>
         <div className="text-white text-right">
-          <div className="font-bold text-[clamp(1.25rem,4vw,2rem)]">{playerSession.totalScore}</div>
+          <div className="font-bold text-[clamp(1.25rem,4vw,2rem)]">{displayedTotalScore}</div>
           <div className="text-[clamp(.5rem,1.5vw,.75rem)] opacity-75">Total Score</div>
         </div>
       </div>
@@ -154,7 +238,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       <div className="w-full bg-white/20 h-[clamp(.25rem,.5vw,.5rem)] mb-[clamp(.5rem,1vw,1rem)]">
         <div
           className="bg-gradient-to-r from-pink-500 to-purple-600 h-full transition-all duration-300"
-          style={{ width: `${((playerSession.currentQuestionIndex + 1) / deck.questions.length) * 100}%` }}
+          style={{ width: `${progressPercentage}%` }}
         />
       </div>
 
@@ -192,7 +276,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
       {/* Results Display */}
       {showResults && (
-        <div className="bg-gradient-to-r from-green-500/20 to-blue-500/20 backdrop-blur-sm rounded-lg
+        <div className="relative bg-gradient-to-r from-green-500/20 to-blue-500/20 backdrop-blur-sm rounded-lg
                         p-[clamp(.5rem,2vw,1rem)] mx-[clamp(.5rem,2vw,1rem)] mb-[clamp(.5rem,1vw,1rem)]">
           <div className="text-center">
             <div className="font-bold text-[clamp(1.5rem,5vw,3rem)] text-white mb-[clamp(.25rem,1vw,.5rem)]">
@@ -201,6 +285,16 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             <div className="text-[clamp(.75rem,2vw,1.25rem)] text-green-200">
               {isLastQuestion ? 'Final Question Complete!' : 'Next question...'}
             </div>
+            
+            {/* Countdown progress bar - integrated at bottom */}
+            {!isLastQuestion && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-transparent rounded-b-lg overflow-hidden">
+                <div 
+                  className="bg-gradient-to-r from-cyan-400 to-indigo-500 h-full transition-all duration-100"
+                  style={{ width: `${countdownProgress}%` }}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -251,8 +345,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                     disabled={showResults || isSubmitting}
                     className="
                       relative flex items-center justify-between w-full
-                      min-h-[clamp(3rem,10vw,5rem)]
-                      p-[clamp(.5rem,1.5vw,1rem)]
+                      min-h-[clamp(5rem,12vw,7rem)]
+                      p-[clamp(1rem,2.5vw,2.2rem)]
                       rounded-xl border-2 overflow-hidden transition-all
                       border-white/50 bg-white/10 hover:bg-white/20 active:scale-[0.98]
                       disabled:opacity-50
@@ -260,7 +354,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                   >
                     <span
                       className="relative flex-1 font-semibold text-left
-                                 text-[clamp(1rem,2.5vw,1.25rem)] text-white"
+                                 text-[clamp(1.25rem,3vw,1.75rem)] text-white"
                     >
                       {card.text}
                     </span>
