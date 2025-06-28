@@ -90,4 +90,5 @@ export type CreateQuestionResponse = Response<{
 export type CreateDeckResponse = Response<{
   deckId: string;
   postId: string;
+  postUrl?: string;
 }>;
