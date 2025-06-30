@@ -1,0 +1,11 @@
+{
+  "theme": {
+    "primary": "#000000",
+    "secondary": "#07495F",
+    "tertiary": "#0E92BE",
+    "weak": "#B2B2B2",
+    "background": "#56CCF2",
+    "shadow": "rgba(0,0,0,0.3)",
+    "orangered": "#FF4500"
+  }
+}

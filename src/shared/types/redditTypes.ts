@@ -25,6 +25,7 @@ export type Deck = {
   flairText?: string;  
   flairCSS?: string;
   questions: Question[];
+  
   createdBy: string;
   createdAt: number;
 };
@@ -67,7 +68,6 @@ export type LeaderboardEntry = {
 
 
 
-// API Response Types
 type Response<T> = { status: 'error'; message: string } | ({ status: 'success' } & T);
 
 export type InitGameResponse = Response<{
@@ -82,18 +82,66 @@ export type SubmitAnswerResponse = Response<{
   nextQuestionIndex?: number;
 }>;
 
-export type LeaderboardResponse = Response<{
-  leaderboard: LeaderboardEntry[];
-  playerRank?: number;
-  playerScore?: number;
-}>;
 
-export type CreateQuestionResponse = Response<{
-  questionId: string;
-}>;
+export type WebviewToBlockMessage = 
+{ type: "INIT" ; 
+}|{ 
+  type: "CREATE_NEW_POST"; 
+  payload: { 
+    postData: Deck;
+  }
+}|{
+  type: "GET_LEADERBOARD_DATA" 
+}|{
+  type : 'COMPLETE_GAME';
+  payload : {answers: PlayerAnswer[], totalScore: number , sessionData : PlayerSession }
+}|{
+  type : "ADD_QUESTION";
+  payload: {
+    question: Question;
+  }
+}
 
-export type CreateDeckResponse = Response<{
-  deckId: string;
-  postId: string;
-  postUrl?: string;
-}>;
+export type BlocksToWebviewMessage = {
+  type: "INIT_RESPONSE";
+  payload: {
+    postId: string;
+    deck : Deck;
+    playerSession: PlayerSession | null;
+    userId: string;
+    username: string;
+    playerRank: number | null;
+    allQuestionStats?: QuestionStats[] | null;
+    // authorId: string;
+    // userId : string;
+    // authorName: string;
+    // posterName: string;
+  };
+  } |
+  // {
+  //   type: "GIVE_PLAYER_DATA";
+  //   payload: { 
+  //     userName : string;
+  //     userAvatar : string;
+  //     playerData : GameUserData 
+  //   };
+  // } |
+  {
+    type : "CONFIRM_SAVE_PLAYER_DATA"
+    payload : { isSaved : boolean}
+  } | {
+    type : "GIVE_LEADERBOARD_DATA";
+    payload : {
+      leaderboard: LeaderboardEntry[];
+      playerRank: number | null;
+      playerScore: number | null;
+    }
+  }
+ ;
+
+export type DevvitMessage = {
+  type: "devvit-message";
+  data: { message: BlocksToWebviewMessage };
+};
+
+

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScoringMode, Deck, PlayerSession } from '../../shared/types/game';
+import { ScoringMode, Deck, PlayerSession } from '../../shared/types/redditTypes';
 
 interface WelcomeScreenProps {
   deck: Deck;

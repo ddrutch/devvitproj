@@ -2,15 +2,18 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { WelcomeScreen } from './WelcomeScreen';
 import { GameScreen } from './GameScreen';
 import { ResultsScreen } from './ResultsScreen';
+import { useDevvitListener } from '../hooks/useDevvitListener';
+import { sendToDevvit } from '../utils';
+
 import { 
   ScoringMode, 
   Deck, 
   PlayerSession, 
-  InitGameResponse,
-  SubmitAnswerResponse,
+  //InitGameResponse,
+  //SubmitAnswerResponse,
   QuestionStats,
   PlayerAnswer 
-} from '../../shared/types/game';
+} from '../../shared/types/redditTypes';
 
 type GamePhase = 'welcome' | 'playing' | 'results';
 
@@ -19,14 +22,101 @@ export const DebateDueler: React.FC = () => {
 
   const [gamePhase, setGamePhase] = useState<GamePhase>('welcome');
   const [deck, setDeck] = useState<Deck | null>(null);
+  const [allQuestionStats, setAllQuestionStats] = useState<QuestionStats[]>([]);
   const [playerSession, setPlayerSession] = useState<PlayerSession | null>(null);
   const [currentQuestionStats, setCurrentQuestionStats] = useState<QuestionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Local storage for answers during gameplay
   const [localAnswers, setLocalAnswers] = useState<PlayerAnswer[]>([]);
   const [localScore, setLocalScore] = useState<number>(0);
+
+  // Listen for INIT_RESPONSE from Devvit
+  const initResponse = useDevvitListener('INIT_RESPONSE');
+  const savedData = useDevvitListener('CONFIRM_SAVE_PLAYER_DATA');
+
+  useEffect(() => {
+    if (savedData) {  
+      console.log("Saved data confirmation received:", savedData);
+      if (savedData.isSaved) {
+        console.log("Player data successfully saved.");
+      } else {
+        console.error("Failed to save player data.");
+      }
+    }
+  }, [savedData]);
+
+  useEffect(() => {
+    if (initResponse) {
+      setError(null);
+      console.log("INIT RESPONSE RECEIVED", initResponse);
+      handleInitResponse(initResponse);
+    } else {
+      console.log("NO INIT RESPONSE YET");
+      // Send INIT request if we haven't received a response
+      sendToDevvit({ type: 'INIT' });
+    }
+  }, [initResponse]);
+  
+
+  const handleInitResponse = (payload: any) => {
+    try {
+      if (!payload || !payload.deck) {
+        throw new Error('Invalid initialization data');
+      }
+
+      console.log("player rank extracted: ", payload.playerRank);
+      setAllQuestionStats(payload.allQuestionStats || []);
+      
+      const savedState = localStorage.getItem(LOCAL_STORAGE_KEY);
+      let useSavedState = false;
+      
+      if (savedState) {
+        try {
+          const parsedState = JSON.parse(savedState);
+          if (payload.deck.id === parsedState.deckId) {
+            useSavedState = true;
+            setGamePhase(parsedState.gamePhase);
+            setPlayerSession(parsedState.playerSession);
+            setLocalAnswers(parsedState.localAnswers);
+            setLocalScore(parsedState.localScore);
+            setCurrentQuestionStats(parsedState.currentQuestionStats);
+          } else {
+            localStorage.removeItem(LOCAL_STORAGE_KEY);
+          }
+        } catch (e) {
+          console.error('Error parsing saved state:', e);
+          localStorage.removeItem(LOCAL_STORAGE_KEY);
+        }
+      }
+
+      setDeck(payload.deck);
+      
+      if (!useSavedState) {
+        // Use session from payload if available
+        if (payload.playerSession) {
+          setPlayerSession(payload.playerSession);
+          if (payload.playerSession.gameState === 'finished') {
+            setGamePhase('results');
+          } else if (payload.playerSession.gameState === 'playing') {
+            setGamePhase('playing');
+            setLocalAnswers(payload.playerSession.answers || []);
+            setLocalScore(payload.playerSession.totalScore || 0);
+          }
+        } else {
+          // No session - show welcome screen
+          setGamePhase('welcome');
+        }
+      }
+      
+      setLoading(false);
+    } catch (err) {
+      console.error('Failed to process init response:', err);
+      setError('Failed to load game. Please refresh and try again.');
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (gamePhase === 'playing' && playerSession && deck) {
@@ -41,67 +131,6 @@ export const DebateDueler: React.FC = () => {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(stateToSave));
     }
   }, [gamePhase, playerSession, deck, localAnswers, localScore, currentQuestionStats]);
-
-
-  // Initialize game data
-  useEffect(() => {
-    const initGame = async () => {
-      try {
-
-        const savedState = localStorage.getItem(LOCAL_STORAGE_KEY);
-        let useSavedState = false;
-        
-        const response = await fetch('/api/init');
-        const data = await response.json() as InitGameResponse;
-        
-        if (data.status === 'error') {
-          setError(data.message);
-          return;
-        }
-
-        if (savedState) {
-          try {
-            const parsedState = JSON.parse(savedState);
-            if (data.deck.id === parsedState.deckId) {
-              useSavedState = true;
-              setGamePhase(parsedState.gamePhase);
-              setPlayerSession(parsedState.playerSession);
-              setLocalAnswers(parsedState.localAnswers);
-              setLocalScore(parsedState.localScore);
-              setCurrentQuestionStats(parsedState.currentQuestionStats);
-            } else {
-              // Remove outdated saved state
-              localStorage.removeItem(LOCAL_STORAGE_KEY);
-            }
-          } catch (e) {
-            console.error('Error parsing saved state:', e);
-            localStorage.removeItem(LOCAL_STORAGE_KEY);
-          }
-        }
-
-        setDeck(data.deck);
-        
-        // If player has an existing session, determine phase
-        if (!useSavedState && data.playerSession) {
-          setPlayerSession(data.playerSession);
-          if (data.playerSession.gameState === 'finished') {
-            setGamePhase('results');
-          } else if (data.playerSession.gameState === 'playing') {
-            setGamePhase('playing');
-            setLocalAnswers(data.playerSession.answers);
-            setLocalScore(data.playerSession.totalScore);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to initialize game:', err);
-        setError('Failed to load game. Please refresh and try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initGame();
-  }, []);
 
   useEffect(() => {
     if (gamePhase === 'results') {
@@ -125,20 +154,20 @@ export const DebateDueler: React.FC = () => {
     setLoading(true);
     try {
       localStorage.removeItem(LOCAL_STORAGE_KEY);
-      const response = await fetch('/api/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scoringMode }),
-      });
       
-      const data = await response.json() as InitGameResponse;
+      // Create a new player session locally
+      const newSession: PlayerSession = {
+        userId: initResponse?.playerSession?.userId || 'unknown',
+        username: initResponse?.username || 'Player',
+        scoringMode,
+        answers: [],
+        totalScore: 0,
+        currentQuestionIndex: 0,
+        gameState: 'playing',
+        startedAt: Date.now()
+      };
       
-      if (data.status === 'error') {
-        setError(data.message);
-        return;
-      }
-      
-      setPlayerSession(data.playerSession!);
+      setPlayerSession(newSession);
       setLocalAnswers([]);
       setLocalScore(0);
       setGamePhase('playing');
@@ -148,12 +177,11 @@ export const DebateDueler: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [deck]);
+  }, [deck, initResponse]);
 
   // Local answer processing - no Redis calls during gameplay
   const submitAnswer = useCallback(async (answer: string | string[], timeRemaining: number) => {
     if (!playerSession || !deck) return;
-    
     const currentQuestion = deck.questions[playerSession.currentQuestionIndex];
     if (!currentQuestion) return;
 
@@ -204,6 +232,24 @@ export const DebateDueler: React.FC = () => {
 
       // Check if game is complete
       const isGameComplete = playerSession.currentQuestionIndex >= deck.questions.length - 1;
+
+      const result = {
+        status: 'success' as const,
+        score: questionScore,
+        questionStats: {
+          questionId: currentQuestion.id,
+          cardStats: {},        // replace with real counts if you have them
+          totalResponses: 0,    // same here
+        },
+        isGameComplete,
+        ...(isGameComplete ? {} : { nextQuestionIndex: playerSession.currentQuestionIndex + 1 }),
+      };
+
+      setAllQuestionStats(prev => {
+        // replace any old entry for this question, then append the new one
+        const filtered = prev.filter(s => s.questionId !== result.questionStats.questionId);
+        return [...filtered, result.questionStats];
+      });
       
       if (isGameComplete) {
         // Game complete - send all data to server at once
@@ -232,60 +278,41 @@ export const DebateDueler: React.FC = () => {
           setCurrentQuestionStats(null);
         }, 2000);
       }
-      
-      return {
-        status: 'success' as const,
-        score: questionScore,
-        questionStats: {
-          questionId: currentQuestion.id,
-          cardStats: {},
-          totalResponses: 0,
-        },
-        isGameComplete,
-        ...(!isGameComplete && { nextQuestionIndex: playerSession.currentQuestionIndex + 1 })
-      };
+      return result
+      ;
     } catch (err) {
       console.error('Failed to process answer:', err);
       setError('Failed to process answer. Please try again.');
     }
   }, [playerSession, deck, localAnswers, localScore]);
 
-  // Submit all results at once when game is complete
-  const submitFinalResults = useCallback(async (answers: PlayerAnswer[], totalScore: number) => {
+
+  const submitFinalResults = useCallback(async (myAnswers: PlayerAnswer[], myTotalScore: number) => {
     if (!playerSession) return;
 
     try {
+      sendToDevvit({ type: 'COMPLETE_GAME',  
+        payload: { answers : myAnswers, totalScore : myTotalScore , sessionData: playerSession } 
+      })
+
       clearTimerStorage();
       localStorage.removeItem(LOCAL_STORAGE_KEY);
-      const response = await fetch('/api/complete-game', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          answers,
-          totalScore,
-        }),
-      });
+    
+      // Update session to finished state
+      setPlayerSession(prev => prev ? {
+        ...prev,
+        myAnswers,
+        myTotalScore,
+        gameState: 'finished' as const,
+        finishedAt: Date.now(),
+      } : null);
       
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        // Update session to finished state
-        setPlayerSession(prev => prev ? {
-          ...prev,
-          answers,
-          totalScore,
-          gameState: 'finished' as const,
-          finishedAt: Date.now(),
-        } : null);
-      } else {
-        console.error('Failed to submit final results:', data.message);
-      }
     } catch (err) {
       console.error('Failed to submit final results:', err);
       localStorage.removeItem(LOCAL_STORAGE_KEY);
       clearTimerStorage();
     }
-  }, [playerSession]);
+  }, [playerSession, postMessage]);
 
   const restartGame = useCallback(() => {
     clearTimerStorage();
@@ -334,7 +361,7 @@ export const DebateDueler: React.FC = () => {
     );
   }
 
-  // Create a session with local data for display purposes
+
   const displaySession = playerSession ? {
     ...playerSession,
     answers: localAnswers,
@@ -357,7 +384,7 @@ export const DebateDueler: React.FC = () => {
           deck={deck}
           playerSession={displaySession!}
           onSubmitAnswer={submitAnswer}
-          currentQuestionStats={currentQuestionStats}
+          allQuestionStats={allQuestionStats}
         />
       );
     

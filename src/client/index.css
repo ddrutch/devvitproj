@@ -1,1 +1,69 @@
 @import 'tailwindcss';
+
+
+/* Reddit flair styling */
+.battles-flair {
+  background-color: #ff6b6b;
+  color: white;
+  font-weight: bold;
+}
+
+.food-flair {
+  background-color: #ff9e58;
+  color: white;
+  font-weight: bold;
+}
+
+.movies-flair {
+  background-color: #6a0dad;
+  color: white;
+  font-weight: bold;
+}
+
+.sports-flair {
+  background-color: #4caf50;
+  color: white;
+  font-weight: bold;
+}
+
+.tech-flair {
+  background-color: #2196f3;
+  color: white;
+  font-weight: bold;
+}
+
+.animals-flair {
+  background-color: #795548;
+  color: white;
+  font-weight: bold;
+}
+
+.music-flair {
+  background-color: #9c27b0;
+  color: white;
+  font-weight: bold;
+}
+
+.gaming-flair {
+  background-color: #3f51b5;
+  color: white;
+  font-weight: bold;
+}
+
+.science-flair {
+  background-color: #009688;
+  color: white;
+  font-weight: bold;
+}
+
+.history-flair {
+  background-color: #607d8b;
+  color: white;
+  font-weight: bold;
+}
+
+.custom-flair {
+  background-color: #636e72;
+  color: white;
+  font-weight: bold;
+}

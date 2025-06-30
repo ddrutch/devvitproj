@@ -5,21 +5,22 @@ import {
   QuestionStats, 
   SubmitAnswerResponse,
   Question,
-} from '../../shared/types/game';
+} from '../../shared/types/redditTypes';
 
 interface GameScreenProps {
   deck: Deck;
   playerSession: PlayerSession;
   onSubmitAnswer: (answer: string | string[], timeRemaining: number) => Promise<SubmitAnswerResponse | undefined>;
-  currentQuestionStats: QuestionStats | null;
+  allQuestionStats: QuestionStats[] | null;
 }
 
 export const GameScreen: React.FC<GameScreenProps> = ({
   deck,
   playerSession,
   onSubmitAnswer,
-  currentQuestionStats,
+  allQuestionStats,
 }) => {
+  
   const [timeRemaining, setTimeRemaining] = useState(20);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(false);
@@ -40,6 +41,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const total = deck.questions.length;
   const [progressOnResult, setProgressOnResult] = useState(0);
   const TIMER_STORAGE_KEY = `debateTimer_${deck.id}_${playerSession.currentQuestionIndex}`;
+
+  const getCurrentQuestionStats = (): QuestionStats | null => {
+    if (!currentQuestion || !allQuestionStats) return null;
+    return allQuestionStats.find(stats => stats.questionId === currentQuestion.id) || null;
+  };
 
   // Sequence selection handler
   const handleSequenceSelect = (cardId: string) => {
@@ -105,11 +111,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   };
 
   const getCardPercentage = (cardId: string): number => {
-    if (!currentQuestionStats || currentQuestionStats.totalResponses === 0) return 0;
-    
-    // Ensure cardStats exists for this card
-    const count = currentQuestionStats.cardStats[cardId] || 0;
-    return Math.round((count / currentQuestionStats.totalResponses) * 100);
+    const stats = getCurrentQuestionStats();
+    if (!stats || stats.totalResponses === 0) return 0;
+    const count = stats.cardStats[cardId] || 0;
+    return Math.round((count / stats.totalResponses) * 100);
   };
 
 
@@ -435,8 +440,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       {/* Bottom Status */}
       <div className="text-center p-[clamp(.25rem,1vw,.5rem)] bg-white/5">
         <p className="text-[clamp(.5rem,1.5vw,.75rem)] text-blue-200">
-          {currentQuestionStats && currentQuestionStats.totalResponses > 0
-            ? `${currentQuestionStats.totalResponses} players have answered`
+          {getCurrentQuestionStats() && getCurrentQuestionStats()!.totalResponses > 0
+            ? `${getCurrentQuestionStats()!.totalResponses} players have answered`
             : 'Be the first to answer!'}
         </p>
       </div>

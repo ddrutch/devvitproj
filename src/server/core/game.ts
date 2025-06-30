@@ -7,7 +7,7 @@ import {
   Question,
   LeaderboardEntry,
   Deck 
-} from '../../shared/types/game';
+} from '../../shared/types/redditTypes';
 
 // Redis key generators
 export const getPlayerSessionKey = (postId: string, userId: string) => `game:${postId}:player:${userId}`;

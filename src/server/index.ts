@@ -2,6 +2,9 @@ import express from 'express';
 import { createServer, getContext, getServerPort } from '@devvit/server';
 import { getRedis } from '@devvit/redis';
 import { reddit } from '@devvit/reddit';
+import { Devvit, Post, useWebView } from '@devvit/public-api';
+
+import React from 'react';
 
 import {
   InitGameResponse,
@@ -37,6 +40,24 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.text());
 
 const router = express.Router();
+
+
+const getFlairCSS = (theme: string): string => {
+  const themeToCSS: Record<string, string> = {
+    battles: 'battles-flair',
+    food: 'food-flair',
+    movies: 'movies-flair',
+    sports: 'sports-flair',
+    tech: 'tech-flair',
+    animals: 'animals-flair',
+    music: 'music-flair',
+    gaming: 'gaming-flair',
+    science: 'science-flair',
+    history: 'history-flair',
+    custom: 'custom-flair',
+  };
+  return themeToCSS[theme] || 'default-flair';
+};
 
 // Initialize game - get deck and player session
 router.get('/api/init', async (_req, res): Promise<void> => {
@@ -351,123 +372,120 @@ router.post<{}, CreateQuestionResponse, { question: Question }>('/api/add-questi
 });
 
 // NEW: Create deck and post
-router.post<{}, CreateDeckResponse, { title: string; description: string; theme: string; questions: any[] }>('/api/create-deck', async (req, res): Promise<void> => {
-  const { title, description, theme, questions } = req.body;
-  const { userId } = getContext();
-  const username = await getContext().reddit.getCurrentUsername();
-  const redditApi = getContext().reddit;
+// router.post<{}, CreateDeckResponse, { title: string; description: string; theme: string; questions: any[] }>('/api/create-deck', async (req, res): Promise<void> => {
+//   const context = getContext();
+//   const { reddit, ui } = context;
+//   const { title, description, theme, questions } = req.body;
+//   const { userId } = getContext();
+//   const username = await reddit.getCurrentUsername();
+//   const redditApi = reddit;
 
-  if (!userId || !username) {
-    res.status(400).json({
-      status: 'error',
-      message: 'Must be logged in to create decks',
-    });
-    return;
-  }
+//   if (!userId || !username) {
+//     res.status(400).json({
+//       status: 'error',
+//       message: 'Must be logged in to create decks',
+//     });
+//     return;
+//   }
 
-  if (!title?.trim() || !description?.trim() || !theme?.trim()) {
-    res.status(400).json({
-      status: 'error',
-      message: 'Title, description, and theme are required',
-    });
-    return;
-  }
+//   if (!title?.trim() || !description?.trim() || !theme?.trim()) {
+//     res.status(400).json({
+//       status: 'error',
+//       message: 'Title, description, and theme are required',
+//     });
+//     return;
+//   }
 
-  if (!questions || !Array.isArray(questions) || questions.length < 5) {
-    res.status(400).json({
-      status: 'error',
-      message: 'At least 5 questions are required',
-    });
-    return;
-  }
+//   if (!questions || !Array.isArray(questions) || questions.length < 5) {
+//     res.status(400).json({
+//       status: 'error',
+//       message: 'At least 5 questions are required',
+//     });
+//     return;
+//   }
 
-  try {
-    // Create the deck object
-    const deck: Deck = {
-      id: `deck_${Date.now()}_${userId}`,
-      title: title.trim(),
-      description: description.trim(),
-      theme: theme.trim(),
-      questions: questions.map((q, index) => ({
-        ...q,
-        id: q.id || `q${index + 1}`,
-        authorUsername: username,
-      })),
-      createdBy: username,
-      createdAt: Date.now(),
-    };
+//   try {
+//     // Create the deck object
+//     const deck: Deck = {
+//       id: `deck_${Date.now()}_${userId}`,
+//       title: title.trim(),
+//       description: description.trim(),
+//       theme: theme.trim(),
+//       flairText: theme.trim(),  // Use theme as flair text
+//       flairCSS: getFlairCSS(theme.trim()),  // Generate CSS class
+//       questions: questions.map((q, index) => ({
+//         ...q,
+//         id: q.id || `q${index + 1}`,
+//         authorUsername: username,
+//       })),
+//       createdBy: username,
+//       createdAt: Date.now(),
+//     };
 
-    // Validate the deck
-    const validationErrors = validateDeck(deck);
-    if (validationErrors.length > 0) {
-      res.status(400).json({
-        status: 'error',
-        message: `Validation failed: ${validationErrors.join(', ')}`,
-      });
-      return;
-    }
+//     // Validate the deck
+//     const validationErrors = validateDeck(deck);
+//     if (validationErrors.length > 0) {
+//       res.status(400).json({
+//         status: 'error',
+//         message: `Validation failed: ${validationErrors.join(', ')}`,
+//       });
+//       return;
+//     }
 
-    // Get current subreddit
-    const subreddit = await redditApi.getCurrentSubreddit();
+//     // Get current subreddit
+//     const subreddit = await redditApi.getCurrentSubreddit();
     
-    // Create the Reddit post
-    const post = await redditApi.submitPost({
-      title: `🥊 ${deck.title} - Debate Dueler`,
-      subredditName: subreddit.name,
-      preview: (
-        <vstack alignment="center middle" gap="large" grow padding="large">
-          <text size="xxlarge" weight="bold">🥊 {deck.title}</text>
-          <text size="large" color="secondary">{deck.description}</text>
-          
-          <vstack alignment="center" gap="medium">
-            <text size="large" weight="bold" color="orange">Choose Your Strategy:</text>
-            <text size="medium">🎭 Contrarian • 👥 Conformist • 🧠 Trivia</text>
-          </vstack>
+//     // Create the Reddit post
+//     const post = await redditApi.submitPost({
+//       title: `🥊 ${deck.title} - Debate Dueler`,
+//       subredditName: subreddit.name,
+//       preview: (
+//                 <vstack height="100%" width="100%" alignment="middle center">
+//                   <text size="large">Loading ...</text>
+//                 </vstack>
+//                 )
+//               });
 
-          <vstack alignment="center" gap="small">
-            <text size="medium" color="secondary">Theme: {deck.theme}</text>
-            <text size="medium" color="secondary">{deck.questions.length} Questions</text>
-            <text size="small" color="secondary">Created by u/{username}</text>
-          </vstack>
+//     // await redditApi.setPostFlair({
+//     //   postId: post.id, // Use the ID from the created post
+//     //   templateId: deck.flairTemplateId, // Required: the flair template ID
+//     //   text: deck.flairText,              // Optional: custom flair text
+//     //   // Add other flair options as needed
+//     // });
+    
+//     // Save the deck to Redis using the post ID
+//     const redis = getRedis();
+//     await saveDeck({ redis, postId: post.id, deck });
 
-          <text size="large" weight="bold" color="green">🚀 Tap to Start Dueling!</text>
-        </vstack>
-      ),
-    });
-
-    // Save the deck to Redis using the post ID
-    const redis = getRedis();
-    await saveDeck({ redis, postId: post.id, deck });
-
-    // Initialize stats for all questions
-    for (const question of deck.questions) {
-      const statsKey = getQuestionStatsKey(post.id, question.id);
+//     // Initialize stats for all questions
+//     for (const question of deck.questions) {
+//       const statsKey = getQuestionStatsKey(post.id, question.id);
       
-      // Create an object with all card fields set to '0'
-      const fieldValues: Record<string, string> = {};
-      question.cards.forEach(card => {
-        fieldValues[card.id] = '0';
-      });
+//       // Create an object with all card fields set to '0'
+//       const fieldValues: Record<string, string> = {};
+//       question.cards.forEach(card => {
+//         fieldValues[card.id] = '0';
+//       });
       
-      // Set all fields at once
-      await redis.hset(statsKey, fieldValues);
-      await redis.set(`${statsKey}:total`, '0');
-    }
+//       // Set all fields at once
+//       await redis.hset(statsKey, fieldValues);
+//       await redis.set(`${statsKey}:total`, '0');
+//     }
 
-    res.json({
-      status: 'success',
-      deckId: deck.id,
-      postId: post.id,
-      postUrl: post.url,
-    } as CreateDeckResponse);
-  } catch (error) {
-    console.error('Create deck error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to create deck and post',
-    });
-  }
-});
+//     res.json({
+//       status: 'success',
+//       deckId: deck.id,
+//       postId: post.id,
+//       postUrl: post.url,
+//     } as CreateDeckResponse);
+//   } catch (error) {
+//     console.error('Create deck error:', error);
+//     res.status(500).json({
+//       status: 'error',
+//       message: 'Failed to create deck and post',
+//     });
+//   }
+// });
 
 app.use(router);
 

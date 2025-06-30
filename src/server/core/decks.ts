@@ -1,4 +1,4 @@
-import { Deck, Question, GameCard } from '../../shared/types/game';
+import { Deck, Question, GameCard } from '../../shared/types/redditTypes';
 
 // Default deck for the game
 export const getDefaultDeck = (): Deck => ({
