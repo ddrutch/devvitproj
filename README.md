@@ -1,66 +1,125 @@
-## Devvit Bolt Starter Experimental
+# 🥊 Debate Dueler
 
-An experimental starter that explores a new way to build applications on Reddit's developer platform.
+A fast-paced, card-based debate game built for Reddit using Devvit. Players choose sides on controversial topics and compete using different scoring strategies in timed rounds.
 
-## Video Tutorial
+## 🎮 How to Play
 
-[![Video Tutorial](docs-img/video-preview.png)](https://www.youtube.com/watch?v=uI85NRCoQNU)
+1. **Choose Your Strategy:**
+   - **🎭 Contrarian**: Score higher for picking the least popular choice
+   - **👥 Conformist**: Score higher for picking the most popular choice  
+   - **🧠 Trivia**: Score based on correct answers
 
-## Getting Started
+2. **Answer Questions**: Respond to timed multiple-choice or sequence questions
 
-This template is made specifically to work with **Bolt.new**.
-Click the button below to open this template directly in Bolt:
+3. **Compete**: Climb the leaderboard and see how your choices compare to the community
 
-<a href="https://bolt.new/github.com/reddit/devvit-bolt-starter-experimental"><img src="docs-img/open-in-bolt-2x.png" heigh="36px" width="199px" alt="Open in Bolt"></a>
+4. **Create**: Add your own questions or create entirely new debate topics
 
-As soon as the project is checked out you will get the following errors.
-**This is expected**!
+## ✨ Features
+
+- **Three Unique Scoring Modes** - Play your way with different strategies
+- **Real-time Community Stats** - See how popular each choice is
+- **Mobile-First Design** - Optimized for all screen sizes
+- **User-Generated Content** - Add questions and create custom debate decks
+- **Leaderboards** - Compete with other players
+- **Themed Categories** - Epic Battles, Food Wars, Movie Madness, and more
+
+## 🛠️ Built With
+
+- **Frontend**: React + TypeScript + Tailwind CSS
+- **Backend**: Node.js serverless functions
+- **Database**: Redis (via Devvit)
+- **Platform**: Reddit Devvit
+- **Development**: Bolt.new
+
+## 🚀 Getting Started
+
+This project is designed to run on Reddit's Devvit platform. To set up locally:
+
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Login to Reddit:**
+   ```bash
+   npm run login
+   ```
+
+3. **Initialize the app:**
+   ```bash
+   npm run devvit:init
+   ```
+
+4. **Update your test subreddit** in `package.json` (replace `YOUR_SUBREDDIT_NAME`)
+
+5. **Start development:**
+   ```bash
+   npm run dev
+   ```
+
+## 📱 Testing
+
+The app should be tested on Reddit, not in the preview window:
+
+1. Go to your test subreddit
+2. Click the three dots menu → Create Post
+3. Look for "[Bolt] Debate Dueler" option
+4. Create and test your post
+
+## 🎯 Game Mechanics
+
+### Scoring System
+- **Base Score**: 50 points per question
+- **Time Bonus**: +5 points per second remaining
+- **Strategy Multiplier**: Based on your chosen scoring mode
+
+### Question Types
+- **Multiple Choice**: Pick the best answer from 2-5 options
+- **Sequence**: Arrange items in the correct order
+
+### Community Features
+- **Add Questions**: Contribute to existing debates
+- **Create Decks**: Start entirely new debate topics
+- **Leaderboards**: See top players across all scoring modes
+
+## 🏗️ Project Structure
 
 ```
-❌  Authentication: Please run `npm run login` to authenticate with Reddit
-❌  App initialization: Please run `npm run devvit:init` to setup your app remotely
-❌  Playtest subreddit: Please update YOUR_SUBREDDIT_NAME in the dev:devvit script in package.json
+src/
+├── client/          # React frontend (webview)
+├── devvit/          # Reddit Devvit app components  
+├── server/          # Node.js serverless backend
+└── shared/          # Shared types and utilities
 ```
 
-### Step 1: Login
+## 🎨 Themes
 
-In bolt terminal, run
+Choose from pre-built themes or create custom ones:
+- ⚔️ Epic Battles
+- 🍕 Food Wars  
+- 🎬 Movie Madness
+- ⚽ Sports Showdown
+- 💻 Tech Talk
+- 🦁 Animal Kingdom
+- 🎵 Music Mania
+- 🎮 Gaming Galaxy
+- 🔬 Science Squad
+- 📚 History Hub
+- ✨ Custom Theme
 
-```
-npm run login
-```
+## 🤝 Contributing
 
-This will authenticate with Reddit. You will be prompted to follow a link and paste an authentication code.
-Paste that authentication code in your **terminal window** in Bolt, then press `<Enter>`.
+This is a hackathon project built with Bolt.new! Feel free to:
+- Add new question types
+- Create new themes
+- Improve the scoring system
+- Enhance the UI/UX
 
-### Step 2: App Initialization
+## 📄 License
 
-In bolt terminal, run
+BSD-3-Clause License - see LICENSE file for details
 
-```
-npm run devvit:init
-```
+---
 
-This will get your app set up with Devvit. You will be prompted to follow a link and paste an authentication code. Paste that authentication code in your **terminal window** in Bolt, then press `<Enter>`.
-
-### Step 3: Playtest subreddit
-
-For this step, you will need to go to Reddit and create an empty subreddit for you to test your app.
-
-You can do this by following going to [Reddit](https://www.reddit.com) and clicking the **"Create a Community"** button in the left-side navigation. Once you create your community, paste the name of the subreddit (for example if you community is reddit.com/r/my_test_subreddit, you will paste `my_test_subreddit`) into the `package.json` file, replacing the string `YOUR_SUBREDDIT_NAME`.
-
-After that, if you run `npm run dev` again, all checks should pass and you should be able to test your application on Reddit.
-
-### Step 4: Testing your app
-
-Once the initial configuration is done, you can test your application by navigating to your test subreddit, clicking the three dots icon on the top-right and creating a new post. The command will be called `[Bolt Word Guesser] New Post`. Once you create a new post you can go back and forth with Bolt by prompting your way to making your app and testing it on Reddit.
-
-Now vibe code away!
-
-### Known limitations
-
-- **Only test on your subreddit:** Your app's backend requests will not work on Bolt's preview window. You need to continue to test your app running in your subreddit, where your backend code will work.
-
-- **Use Reddit's backend:** Devvit provides a free of charge scalable backend. Bolt will be able to help you use Reddit's Redis database for key-value storage. You are not going to be able to use other tools such as Supabase for your backend.
-
-- **This is experimental:** While the Devvit team is working to make it as easy as possible to use Bolt for authoring Reddit apps, this is all still in an experimental phase. If you run into issues, please [join our Discord](https://discord.com/invite/Cd43ExtEFS) and ask your questions in **#devvit-vibe-coding**
+**Built with ⚡ [Bolt.new](https://bolt.new)** - The AI-powered full-stack development platform

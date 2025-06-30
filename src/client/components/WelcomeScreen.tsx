@@ -44,6 +44,19 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   return (
     <div className="h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4 flex items-center justify-center overflow-hidden">
+      {/* Built with Bolt.new Badge */}
+      <div className="fixed top-4 right-4 z-50">
+        <a 
+          href="https://bolt.new" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="flex items-center space-x-2 bg-black/20 backdrop-blur-sm border border-white/20 rounded-full px-3 py-1.5 text-white/80 hover:text-white hover:bg-black/30 transition-all text-xs"
+        >
+          <span>⚡</span>
+          <span>Built with Bolt.new</span>
+        </a>
+      </div>
+
       <div className="w-full max-w-md mx-auto">
         {/* Header */}
         <div className="text-center mb-6">

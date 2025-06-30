@@ -220,6 +220,19 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
   return (
     <div className="h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex flex-col overflow-hidden">
+      {/* Built with Bolt.new Badge */}
+      <div className="absolute top-2 right-2 z-50">
+        <a 
+          href="https://bolt.new" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="flex items-center space-x-1 bg-black/20 backdrop-blur-sm border border-white/20 rounded-full px-2 py-1 text-white/80 hover:text-white hover:bg-black/30 transition-all text-xs"
+        >
+          <span>⚡</span>
+          <span>Built with Bolt.new</span>
+        </a>
+      </div>
+
       {/* Top Bar */}
       <div className="flex justify-between items-center px-[clamp(.5rem,2vw,1rem)] py-[clamp(.25rem,1vw,.75rem)]">
         <div className="text-white">
